@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
@@ -6,7 +5,6 @@ import Dashboard from './pages/Dashboard';
 import CourseDetail from './pages/CourseDetail';
 import Settings from './pages/Settings';
 import Schedule from './pages/Schedule';
-import Community from './pages/Community';
 import Layout from './components/Layout';
 import { User, Course, ScheduleEvent, UserPreferences, Notification } from './types';
 import { MOCK_COURSES } from './data/mockData';
@@ -165,7 +163,6 @@ const App: React.FC = () => {
             user={user!} 
           />
         } />
-        <Route path="community" element={<Community currentUser={user!} />} />
         <Route path="settings" element={
           <Settings 
             user={user!} 

@@ -1,4 +1,3 @@
-
 export interface Subscription {
   status: 'active' | 'expired' | 'none';
   expiryDate: string | null;
@@ -90,6 +89,7 @@ export interface ChatMessage {
   text: string;
 }
 
+// Fixed: Added missing Message interface for Community peer-to-peer chat
 export interface Message {
   id: string;
   senderId: string;

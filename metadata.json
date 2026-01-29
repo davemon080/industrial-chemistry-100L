@@ -1,5 +1,8 @@
 {
   "name": "EduStream Student Organizer",
-  "description": "A focused academic organizer for managing course modules and master schedules.",
-  "requestFramePermissions": []
+  "description": "A comprehensive school organizer to manage course modules, watch lecture videos, and get AI-powered study assistance.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
 }
