@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import CourseDetail from './pages/CourseDetail';
@@ -13,6 +13,7 @@ import { MOCK_COURSES } from './data/mockData';
 import { getAllItems, saveItem, deleteItem } from './services/dbService';
 
 const App: React.FC = () => {
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(() => {
     try {
@@ -26,6 +27,10 @@ const App: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
+  const [userReminders, setUserReminders] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('user_reminders');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [preferences, setPreferences] = useState<UserPreferences>({
     notificationsEnabled: true,
     defaultLeadTimes: { class: 30, assignment: 1440, test: 120, exam: 2880 }
@@ -56,16 +61,20 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem('user_reminders', JSON.stringify(userReminders));
+  }, [userReminders]);
+
   const handleLogin = (userData: User) => {
     setUser(userData);
     localStorage.setItem('user', JSON.stringify(userData));
+    navigate('/');
   };
 
   const handleLogout = () => {
-    if (window.confirm("Sign out of your session?")) {
-      setUser(null);
-      localStorage.removeItem('user');
-    }
+    setUser(null);
+    localStorage.removeItem('user');
+    navigate('/login', { replace: true });
   };
 
   const addCourse = async (c: Course) => {
@@ -85,10 +94,25 @@ const App: React.FC = () => {
 
   const updateEvents = async (newEvents: ScheduleEvent[]) => {
     setEvents(newEvents);
-    // Ideally update specifically, but for simplicity we save all
+    // Cleanup deleted events from DB
+    const currentEventIds = new Set(newEvents.map(e => e.id));
+    const allStored = await getAllItems<ScheduleEvent>('events');
+    for (const stored of allStored) {
+      if (!currentEventIds.has(stored.id)) {
+        await deleteItem('events', stored.id);
+      }
+    }
+    // Save/Update new events
     for (const event of newEvents) {
       await saveItem('events', event);
     }
+  };
+
+  const toggleReminder = (eventId: string) => {
+    setUserReminders(prev => ({
+      ...prev,
+      [eventId]: !prev[eventId]
+    }));
   };
 
   if (isLoading) {
@@ -101,39 +125,63 @@ const App: React.FC = () => {
   }
 
   return (
-    <HashRouter>
-      <Routes>
-        <Route 
-          path="/login" 
-          element={user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />} 
-        />
-        <Route 
-          path="/" 
-          element={user ? <Layout user={user} onLogout={handleLogout} notifications={notifications} onMarkRead={() => setNotifications(n => n.map(x => ({...x, isRead: true})))} onClear={() => setNotifications([])} /> : <Navigate to="/login" replace />} 
-        >
-          <Route index element={
-            <Dashboard 
-              courses={courses} 
-              user={user!} 
-              notifications={notifications} 
-              onAddCourse={addCourse} 
-              onUpdateCourse={updateCourse}
-              onDeleteCourse={handleDeleteCourse}
-            />
-          } />
-          <Route path="schedule" element={
-            <Schedule 
-              events={events} courses={courses} onUpdateEvents={updateEvents} userReminders={{}} 
-              onToggleReminder={() => {}} preferences={preferences} user={user!} 
-            />
-          } />
-          <Route path="community" element={<Community currentUser={user!} />} />
-          <Route path="settings" element={<Settings user={user!} onLogout={handleLogout} preferences={preferences} onUpdatePrefs={setPreferences} onUpdateUser={(u) => { setUser(u); localStorage.setItem('user', JSON.stringify(u)); }} />} />
-          <Route path="course/:courseId" element={<CourseDetail courses={courses} onUpdateCourse={updateCourse} user={user!} />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </HashRouter>
+    <Routes>
+      <Route 
+        path="/login" 
+        element={user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />} 
+      />
+      <Route 
+        path="/" 
+        element={user ? (
+          <Layout 
+            user={user} 
+            onLogout={handleLogout} 
+            notifications={notifications} 
+            onMarkRead={() => setNotifications(n => n.map(x => ({...x, isRead: true})))} 
+            onClear={() => setNotifications([])} 
+          />
+        ) : (
+          <Navigate to="/login" replace />
+        )} 
+      >
+        <Route index element={
+          <Dashboard 
+            courses={courses} 
+            user={user!} 
+            notifications={notifications} 
+            onAddCourse={addCourse} 
+            onUpdateCourse={updateCourse}
+            onDeleteCourse={handleDeleteCourse}
+          />
+        } />
+        <Route path="schedule" element={
+          <Schedule 
+            events={events} 
+            courses={courses} 
+            onUpdateEvents={updateEvents} 
+            userReminders={userReminders} 
+            onToggleReminder={toggleReminder} 
+            preferences={preferences} 
+            user={user!} 
+          />
+        } />
+        <Route path="community" element={<Community currentUser={user!} />} />
+        <Route path="settings" element={
+          <Settings 
+            user={user!} 
+            onLogout={handleLogout} 
+            preferences={preferences} 
+            onUpdatePrefs={setPreferences} 
+            onUpdateUser={(u) => { 
+              setUser(u); 
+              localStorage.setItem('user', JSON.stringify(u)); 
+            }} 
+          />
+        } />
+        <Route path="course/:courseId" element={<CourseDetail courses={courses} onUpdateCourse={updateCourse} user={user!} />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
   );
 };
 

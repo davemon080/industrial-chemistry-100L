@@ -16,7 +16,6 @@ export const MOCK_COURSES: Course[] = [
     title: 'General Chemistry I',
     instructor: 'Dr. A. Mensah',
     thumbnail: '',
-    progress: 35,
     modules: [
       {
         id: 'chm101-m1',
@@ -54,7 +53,6 @@ export const MOCK_COURSES: Course[] = [
     title: 'Introduction to Computer Science',
     instructor: 'Dr. K. Obi',
     thumbnail: '',
-    progress: 20,
     modules: []
   },
   {
@@ -62,7 +60,6 @@ export const MOCK_COURSES: Course[] = [
     title: 'Elementary Mathematics I',
     instructor: 'Prof. S. Ibrahim',
     thumbnail: '',
-    progress: 45,
     modules: []
   },
   {
@@ -70,7 +67,6 @@ export const MOCK_COURSES: Course[] = [
     title: 'General Physics I (Mechanics)',
     instructor: 'Dr. T. Adebayo',
     thumbnail: '',
-    progress: 15,
     modules: []
   },
   {
@@ -78,7 +74,6 @@ export const MOCK_COURSES: Course[] = [
     title: 'General Biology I',
     instructor: 'Prof. E. Okon',
     thumbnail: '',
-    progress: 10,
     modules: []
   },
   {
@@ -86,7 +81,6 @@ export const MOCK_COURSES: Course[] = [
     title: 'Use of English',
     instructor: 'Mrs. J. Smith',
     thumbnail: '',
-    progress: 60,
     modules: []
   },
   {
@@ -94,7 +88,6 @@ export const MOCK_COURSES: Course[] = [
     title: 'Philosophy & Human Existence',
     instructor: 'Dr. F. Nwosu',
     thumbnail: '',
-    progress: 5,
     modules: []
   },
   {
@@ -102,7 +95,6 @@ export const MOCK_COURSES: Course[] = [
     title: 'Engineering Graphics',
     instructor: 'Engr. B. Williams',
     thumbnail: '',
-    progress: 0,
     modules: []
   },
   {
@@ -110,7 +102,6 @@ export const MOCK_COURSES: Course[] = [
     title: 'Intro to Electrical Engineering',
     instructor: 'Dr. V. Gupta',
     thumbnail: '',
-    progress: 0,
     modules: []
   }
 ];

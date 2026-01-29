@@ -30,7 +30,6 @@ const CourseCard: React.FC<CourseCardProps> = ({ course }) => {
   };
 
   const theme = getPrefixTheme(course.id);
-  const progress = course.progress || 0;
 
   return (
     <Link 
@@ -49,7 +48,6 @@ const CourseCard: React.FC<CourseCardProps> = ({ course }) => {
             <h3 className="text-xl font-black text-slate-900 leading-tight">
               {course.id}
             </h3>
-            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{progress}% Done</span>
           </div>
           <p className="text-slate-500 font-bold text-sm truncate">
             {course.title}
@@ -65,14 +63,6 @@ const CourseCard: React.FC<CourseCardProps> = ({ course }) => {
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
           </svg>
         </div>
-      </div>
-
-      {/* Progress Bar Container */}
-      <div className="mt-5 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-        <div 
-          className={`h-full bg-indigo-600 rounded-full transition-all duration-700 ease-out`}
-          style={{ width: `${progress}%` }}
-        />
       </div>
     </Link>
   );

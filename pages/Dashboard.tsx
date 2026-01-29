@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import CourseCard from '../components/CourseCard';
 import { Course, User, Notification } from '../types';
@@ -70,7 +71,6 @@ const Dashboard: React.FC<DashboardProps> = ({ courses, user, notifications, onA
         title: newCourseTitle,
         instructor: newInstructor || 'Staff Faculty',
         thumbnail: '',
-        progress: 0,
         modules: []
       };
       onAddCourse(newCourse);

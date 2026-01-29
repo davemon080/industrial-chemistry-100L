@@ -49,11 +49,10 @@ const Settings: React.FC<SettingsProps> = ({ user, onLogout, preferences, onUpda
 
   const handleSubscribe = () => {
     setIsProcessingPay(true);
-    // Simulate transaction delay
     setTimeout(() => {
       const now = new Date();
       const expiry = new Date();
-      expiry.setDate(now.getDate() + 30); // 30 Day subscription
+      expiry.setDate(now.getDate() + 30);
 
       const newSub: Subscription = {
         status: 'active',
@@ -81,7 +80,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onLogout, preferences, onUpda
       )}
 
       <div className="space-y-8">
-        {/* Subscription Panel - Featured at top */}
+        {/* Subscription Panel */}
         <section className={`rounded-[2.5rem] border p-8 shadow-sm transition-all ${isSubscribed ? 'bg-white border-indigo-100' : 'bg-indigo-900 text-white border-indigo-950'}`}>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
@@ -119,15 +118,9 @@ const Settings: React.FC<SettingsProps> = ({ user, onLogout, preferences, onUpda
               )}
             </button>
           </div>
-          
-          {user.subscription?.status === 'expired' && (
-            <div className="mt-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
-              <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest text-center">Your membership has expired. Renew to restore access.</p>
-            </div>
-          )}
         </section>
 
-        {/* Personal Details & Avatar */}
+        {/* Personal Details */}
         <section className="bg-white rounded-[2.5rem] border border-slate-200 p-8 shadow-sm">
           <div className="flex items-center gap-2 mb-8">
             <div className="w-2 h-2 bg-indigo-600 rounded-full" />
@@ -164,7 +157,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onLogout, preferences, onUpda
           </form>
         </section>
 
-        {/* Academic Alerts Switch */}
+        {/* Academic Alerts */}
         <section className="bg-white rounded-[2.5rem] border border-slate-200 p-8 shadow-sm">
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -199,13 +192,20 @@ const Settings: React.FC<SettingsProps> = ({ user, onLogout, preferences, onUpda
           )}
         </section>
 
+        {/* Functional Log Out Section */}
         <section className="bg-rose-50/50 rounded-[2.5rem] border border-rose-100 p-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
               <h3 className="text-[10px] font-black text-rose-500 uppercase tracking-[0.2em]">Destructive Actions</h3>
               <p className="text-xs text-rose-400 font-medium mt-1">End your current session immediately</p>
             </div>
-            <button onClick={onLogout} className="px-8 py-4 bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-lg shadow-rose-200">Log Out</button>
+            {/* The Logout button below is wired directly to the handleLogout passed from App */}
+            <button 
+              onClick={onLogout} 
+              className="px-8 py-4 bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-lg shadow-rose-200"
+            >
+              Log Out of Session
+            </button>
           </div>
         </section>
       </div>

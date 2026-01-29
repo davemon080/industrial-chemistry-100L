@@ -46,7 +46,6 @@ export interface Course {
   instructor: string;
   thumbnail: string;
   modules: Module[];
-  progress: number;
 }
 
 export type EventType = 'class' | 'assignment' | 'test' | 'exam';
@@ -62,7 +61,11 @@ export interface ScheduleEvent {
   description: string;
   lecturer?: string;
   isVirtual?: boolean;
+  submissionType?: 'physical' | 'online';
   submissionLink?: string;
+  submissionLocation?: string;
+  assignmentFile?: Attachment;
+  meetingLink?: string; // Link for online lectures or assessments
   maxPoints?: string;
   duration?: string;
   materials?: string;
