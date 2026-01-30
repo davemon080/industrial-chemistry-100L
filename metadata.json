@@ -1,8 +1,7 @@
 {
-  "name": "EduStream Student Organizer",
-  "description": "A comprehensive school organizer to manage course modules, watch lecture videos, and get AI-powered study assistance.",
+  "name": "ICH Student Hub",
+  "description": "A comprehensive study platform for 100L Industrial Chemistry students to access study materials, schedules, and guides with an intuitive Google AI-inspired interface.",
   "requestFramePermissions": [
-    "camera",
-    "microphone"
+    "camera"
   ]
 }

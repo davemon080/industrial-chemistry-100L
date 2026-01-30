@@ -1,99 +1,33 @@
-export interface Subscription {
-  status: 'active' | 'expired' | 'none';
-  expiryDate: string | null;
-  lastPaymentDate: string | null;
-}
-
-export type UserRole = 'student' | 'rep';
 
 export interface User {
   id: string;
-  name: string;
-  email: string;
-  avatar: string;
-  role: UserRole;
-  subscription?: Subscription;
+  matricNumber: string;
+  isCourseRep: boolean;
+  password?: string;
 }
 
-export interface Attachment {
-  name: string;
-  url: string; // Base64 for local persistence
-  timestamp?: number; // Unix timestamp for upload time
-}
-
-export interface Video {
+export interface Material {
   id: string;
+  courseCode: string;
   title: string;
-  url: string;
-  duration: string;
-  thumbnail: string;
-  attachments?: Attachment[];
+  pdfUrl: string;
+  uploadedBy: string;
+  uploadedAt: string;
 }
 
-export interface Module {
+export interface ScheduleItem {
   id: string;
-  title: string;
-  description: string;
-  videos: Video[];
-  attachments?: Attachment[];
-  content: string; // Text content for context
+  day: string;
+  startTime: string;
+  endTime: string;
+  courseCode: string;
+  venue: string;
 }
 
-export interface Course {
-  id: string;
-  title: string;
-  instructor: string;
-  thumbnail: string;
-  modules: Module[];
-}
-
-export type EventType = 'class' | 'assignment' | 'test' | 'exam';
-
-export interface ScheduleEvent {
-  id: string;
-  type: EventType;
-  title: string;
-  courseId: string;
-  date: string;
-  time: string;
-  location: string;
-  description: string;
-  lecturer?: string;
-  isVirtual?: boolean;
-  submissionType?: 'physical' | 'online';
-  submissionLink?: string;
-  submissionLocation?: string;
-  assignmentFile?: Attachment;
-  meetingLink?: string; // Link for online lectures or assessments
-  maxPoints?: string;
-  duration?: string;
-  materials?: string;
-}
-
-export interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  timestamp: Date;
-  isRead: boolean;
-  type: EventType | 'system';
-}
-
-export interface UserPreferences {
-  defaultLeadTimes: Record<EventType, number>;
-  notificationsEnabled: boolean;
-}
-
-export interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
-}
-
-// Fixed: Added missing Message interface for Community peer-to-peer chat
-export interface Message {
-  id: string;
-  senderId: string;
-  receiverId: string;
-  text: string;
-  timestamp: number;
+export enum Page {
+  COURSES = 'courses',
+  SCHEDULE = 'schedule',
+  GUIDE = 'guide',
+  SETTINGS = 'settings',
+  COURSE_DETAIL = 'course_detail'
 }

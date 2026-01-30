@@ -1,20 +1,44 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# ICH Student Hub - Database Schema
 
-This contains everything you need to run your app locally.
+To set up the database for this application on Neon (PostgreSQL), execute the following SQL commands:
 
-View your app in AI Studio: https://ai.studio/apps/drive/161rTMNZbCZLmON4bp-Ob2_BjxV2PDAhU
+```sql
+-- Users Table
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    matric_number VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    is_course_rep BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
-## Run Locally
+-- Materials Table
+CREATE TABLE materials (
+    id SERIAL PRIMARY KEY,
+    course_code VARCHAR(10) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    pdf_url TEXT NOT NULL,
+    uploaded_by VARCHAR(255) REFERENCES users(matric_number),
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
-**Prerequisites:**  Node.js
+-- Schedules Table
+CREATE TABLE schedules (
+    id SERIAL PRIMARY KEY,
+    day_of_week VARCHAR(10) NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    course_code VARCHAR(10) NOT NULL,
+    venue VARCHAR(100)
+);
 
+-- Insert Default Course Rep
+-- Note: Password is set to matric number by default as per requirements
+INSERT INTO users (matric_number, password, is_course_rep) 
+VALUES ('2025/PS/ICH/0034', '2025/PS/ICH/0034', TRUE)
+ON CONFLICT (matric_number) DO NOTHING;
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Connection Configuration
+The application is pre-configured to use the provided Neon credentials. For a production deployment, ensure these are handled securely in a backend environment (Node.js/Next.js).

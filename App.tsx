@@ -1,184 +1,76 @@
+
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { User, Page } from './types';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
+import Register from './pages/Register';
+import CourseList from './pages/CourseList';
 import CourseDetail from './pages/CourseDetail';
-import Settings from './pages/Settings';
 import Schedule from './pages/Schedule';
-import Layout from './components/Layout';
-import { User, Course, ScheduleEvent, UserPreferences, Notification } from './types';
-import { MOCK_COURSES } from './data/mockData';
-import { getAllItems, saveItem, deleteItem } from './services/dbService';
+import Guide from './pages/Guide';
+import Settings from './pages/Settings';
+import Navigation from './components/Navigation';
+import { Bell } from 'lucide-react';
 
 const App: React.FC = () => {
-  const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
+  // Initialize state directly from localStorage to prevent login-flash on reload
   const [user, setUser] = useState<User | null>(() => {
-    try {
-      const saved = localStorage.getItem('user');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      return null;
-    }
+    const saved = localStorage.getItem('ich_current_user');
+    return saved ? JSON.parse(saved) : null;
   });
-
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [events, setEvents] = useState<ScheduleEvent[]>([]);
-  const [userReminders, setUserReminders] = useState<Record<string, boolean>>(() => {
-    const saved = localStorage.getItem('user_reminders');
-    return saved ? JSON.parse(saved) : {};
-  });
-  const [preferences, setPreferences] = useState<UserPreferences>({
-    notificationsEnabled: true,
-    defaultLeadTimes: { class: 30, assignment: 1440, test: 120, exam: 2880 }
-  });
-
-  // Initial Load from IndexedDB
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const storedCourses = await getAllItems<Course>('courses');
-        const storedEvents = await getAllItems<ScheduleEvent>('events');
-        
-        setCourses(storedCourses.length > 0 ? storedCourses : MOCK_COURSES);
-        setEvents(storedEvents);
-        
-        const savedPrefs = localStorage.getItem('user_prefs');
-        if (savedPrefs) setPreferences(JSON.parse(savedPrefs));
-        
-        const savedNotifs = localStorage.getItem('notifications');
-        if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
-      } catch (e) {
-        console.error("DB Load Error", e);
-        setCourses(MOCK_COURSES);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('user_reminders', JSON.stringify(userReminders));
-  }, [userReminders]);
+  
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogin = (userData: User) => {
     setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
-    navigate('/');
+    localStorage.setItem('ich_current_user', JSON.stringify(userData));
+    navigate('/courses');
   };
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('user');
-    navigate('/login', { replace: true });
+    localStorage.removeItem('ich_current_user');
+    navigate('/login');
   };
 
-  const addCourse = async (c: Course) => {
-    setCourses(prev => [...prev, c]);
-    await saveItem('courses', c);
-  };
-
-  const updateCourse = async (c: Course) => {
-    setCourses(prev => prev.map(x => x.id === c.id ? c : x));
-    await saveItem('courses', c);
-  };
-
-  const handleDeleteCourse = async (id: string) => {
-    setCourses(prev => prev.filter(x => x.id !== id));
-    await deleteItem('courses', id);
-  };
-
-  const updateEvents = async (newEvents: ScheduleEvent[]) => {
-    setEvents(newEvents);
-    // Cleanup deleted events from DB
-    const currentEventIds = new Set(newEvents.map(e => e.id));
-    const allStored = await getAllItems<ScheduleEvent>('events');
-    for (const stored of allStored) {
-      if (!currentEventIds.has(stored.id)) {
-        await deleteItem('events', stored.id);
-      }
-    }
-    // Save/Update new events
-    for (const event of newEvents) {
-      await saveItem('events', event);
-    }
-  };
-
-  const toggleReminder = (eventId: string) => {
-    setUserReminders(prev => ({
-      ...prev,
-      [eventId]: !prev[eventId]
-    }));
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-indigo-600/10 border-t-indigo-600 rounded-full animate-spin mb-4" />
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Loading Academic Data</p>
-      </div>
-    );
-  }
+  const showNav = user && !['/login', '/register'].includes(location.pathname);
 
   return (
-    <Routes>
-      <Route 
-        path="/login" 
-        element={user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />} 
-      />
-      <Route 
-        path="/" 
-        element={user ? (
-          <Layout 
-            user={user} 
-            onLogout={handleLogout} 
-            notifications={notifications} 
-            onMarkRead={() => setNotifications(n => n.map(x => ({...x, isRead: true})))} 
-            onClear={() => setNotifications([])} 
-          />
-        ) : (
-          <Navigate to="/login" replace />
-        )} 
-      >
-        <Route index element={
-          <Dashboard 
-            courses={courses} 
-            user={user!} 
-            notifications={notifications} 
-            onAddCourse={addCourse} 
-            onUpdateCourse={updateCourse}
-            onDeleteCourse={handleDeleteCourse}
-          />
-        } />
-        <Route path="schedule" element={
-          <Schedule 
-            events={events} 
-            courses={courses} 
-            onUpdateEvents={updateEvents} 
-            userReminders={userReminders} 
-            onToggleReminder={toggleReminder} 
-            preferences={preferences} 
-            user={user!} 
-          />
-        } />
-        <Route path="settings" element={
-          <Settings 
-            user={user!} 
-            onLogout={handleLogout} 
-            preferences={preferences} 
-            onUpdatePrefs={setPreferences} 
-            onUpdateUser={(u) => { 
-              setUser(u); 
-              localStorage.setItem('user', JSON.stringify(u)); 
-            }} 
-          />
-        } />
-        <Route path="course/:courseId" element={<CourseDetail courses={courses} onUpdateCourse={updateCourse} user={user!} />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+    <div className="min-h-screen flex flex-col bg-gray-50 pb-20 md:pb-0">
+      {/* Global Notification Icon - Positioned relative to the whole body */}
+      {showNav && (
+        <div className="fixed top-4 right-4 md:top-6 md:right-6 z-50 animate-fade-in">
+          <button 
+            className="p-3 bg-white/80 backdrop-blur-md border border-gray-200 rounded-2xl shadow-lg text-gray-600 hover:text-blue-600 hover:border-blue-100 transition-all group active:scale-95"
+            onClick={() => alert('No new notifications')}
+          >
+            <div className="relative">
+              <Bell size={20} className="md:w-6 md:h-6 group-hover:rotate-12 transition-transform" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-600 border-2 border-white rounded-full animate-pulse"></span>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* Main content area now fills the whole body width */}
+      <main className="flex-grow w-full">
+        <Routes>
+          <Route path="/login" element={!user ? <Login onLogin={handleLogin} /> : <Navigate to="/courses" />} />
+          <Route path="/register" element={!user ? <Register onRegister={handleLogin} /> : <Navigate to="/courses" />} />
+          
+          <Route path="/courses" element={user ? <CourseList user={user} /> : <Navigate to="/login" />} />
+          <Route path="/courses/:code" element={user ? <CourseDetail user={user} /> : <Navigate to="/login" />} />
+          <Route path="/schedule" element={user ? <Schedule /> : <Navigate to="/login" />} />
+          <Route path="/guide" element={user ? <Guide /> : <Navigate to="/login" />} />
+          <Route path="/settings" element={user ? <Settings user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} />
+          
+          <Route path="/" element={<Navigate to={user ? "/courses" : "/login"} />} />
+        </Routes>
+      </main>
+
+      {showNav && <Navigation />}
+    </div>
   );
 };
 

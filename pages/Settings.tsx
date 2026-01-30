@@ -1,218 +1,125 @@
 
 import React, { useState } from 'react';
-import { User, UserPreferences, EventType, Subscription } from '../types';
+import { User } from '../types';
+import { dbService } from '../services/dbService';
+import { LogOut, Lock, User as UserIcon, Bell, Shield, Loader2, ChevronRight } from 'lucide-react';
 
-interface SettingsProps {
+interface Props {
   user: User;
   onLogout: () => void;
-  preferences: UserPreferences;
-  onUpdatePrefs: (p: UserPreferences) => void;
-  onUpdateUser: (u: User) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ user, onLogout, preferences, onUpdatePrefs, onUpdateUser }) => {
-  const [name, setName] = useState(user.name);
-  const [email, setEmail] = useState(user.email);
-  const [avatar, setAvatar] = useState(user.avatar);
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
-  const [isProcessingPay, setIsProcessingPay] = useState(false);
+const Settings: React.FC<Props> = ({ user, onLogout }) => {
+  const [newPassword, setNewPassword] = useState('');
+  const [success, setSuccess] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  const isSubscribed = user.subscription?.status === 'active';
-
-  const handleUpdateProfile = (e: React.FormEvent) => {
+  const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateUser({ ...user, name, email, avatar });
-    showStatus('Profile updated successfully');
-  };
-
-  const showStatus = (msg: string, isError = false) => {
-    setSaveStatus(msg);
-    setTimeout(() => setSaveStatus(null), 3000);
-  };
-
-  const updateLeadTime = (type: EventType, value: number) => {
-    onUpdatePrefs({
-      ...preferences,
-      defaultLeadTimes: {
-        ...preferences.defaultLeadTimes,
-        [type]: value
+    if (newPassword.length < 4) return;
+    
+    setIsUpdating(true);
+    try {
+      const success = await dbService.updatePassword(user.matricNumber, newPassword);
+      if (success) {
+        setSuccess('Password updated successfully!');
+        setNewPassword('');
+        setTimeout(() => setSuccess(''), 3000);
       }
-    });
-  };
-
-  const toggleNotifications = () => {
-    onUpdatePrefs({
-      ...preferences,
-      notificationsEnabled: !preferences.notificationsEnabled
-    });
-  };
-
-  const handleSubscribe = () => {
-    setIsProcessingPay(true);
-    setTimeout(() => {
-      const now = new Date();
-      const expiry = new Date();
-      expiry.setDate(now.getDate() + 30);
-
-      const newSub: Subscription = {
-        status: 'active',
-        expiryDate: expiry.toISOString(),
-        lastPaymentDate: now.toISOString()
-      };
-
-      onUpdateUser({ ...user, subscription: newSub });
-      setIsProcessingPay(false);
-      showStatus('Subscription Activated Successfully!');
-    }, 2000);
+    } catch (err) {
+      alert("Failed to update password.");
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   return (
-    <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
-      <header className="mb-12 px-2">
-        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.4em] block mb-1">Preferences & Identity</span>
-        <h1 className="text-4xl font-black text-slate-900 tracking-tight">System Settings</h1>
+    <div className="p-6 pb-24">
+      <header className="mb-8">
+        <h1 className="google-font text-3xl font-extrabold text-gray-900 tracking-tight">Settings</h1>
+        <p className="text-gray-500 mt-1 font-medium">Manage your ICH digital profile</p>
       </header>
 
-      {saveStatus && (
-        <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 px-6 py-3 rounded-2xl text-white text-xs font-black uppercase tracking-widest shadow-xl z-50 animate-in slide-in-from-bottom-4 ${saveStatus.includes('Error') ? 'bg-rose-500' : 'bg-emerald-500'}`}>
-          {saveStatus}
-        </div>
-      )}
-
-      <div className="space-y-8">
-        {/* Subscription Panel */}
-        <section className={`rounded-[2.5rem] border p-8 shadow-sm transition-all ${isSubscribed ? 'bg-white border-indigo-100' : 'bg-indigo-900 text-white border-indigo-950'}`}>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${isSubscribed ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-900'}`}>
-                  {isSubscribed ? 'Active Member' : 'EduStream Pro'}
-                </span>
-              </div>
-              <h3 className={`text-2xl font-black tracking-tight ${isSubscribed ? 'text-slate-900' : 'text-white'}`}>
-                {isSubscribed ? 'Subscription Valid' : 'Upgrade your experience'}
-              </h3>
-              <p className={`text-xs font-bold mt-1 max-w-sm ${isSubscribed ? 'text-slate-400' : 'text-indigo-200'}`}>
-                {isSubscribed 
-                  ? `Access expires on ${new Date(user.subscription!.expiryDate!).toLocaleDateString()}. Total fee: ₦1,000/month.` 
-                  : 'Get restricted access to course modules, AI assistance, and master schedule for just ₦1,000/month.'}
-              </p>
-            </div>
-
-            <button 
-              onClick={handleSubscribe}
-              disabled={isProcessingPay || isSubscribed}
-              className={`px-8 py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 ${
-                isSubscribed 
-                  ? 'bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed' 
-                  : 'bg-white text-indigo-900 shadow-xl hover:scale-105 active:scale-95'
-              }`}
-            >
-              {isProcessingPay ? (
-                <>
-                  <div className="w-3 h-3 border-2 border-indigo-900 border-t-transparent rounded-full animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                isSubscribed ? 'Membership Active' : 'Pay ₦1,000 • 30 Days'
-              )}
-            </button>
+      <div className="bg-white rounded-[32px] p-6 md:p-8 shadow-sm border border-gray-100 mb-6 animate-fade-in">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6 mb-10">
+          <div className="w-24 h-24 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-[32px] flex items-center justify-center text-blue-600 shadow-inner">
+            <UserIcon size={48} />
           </div>
-        </section>
+          <div className="text-center sm:text-left">
+            <h3 className="google-font text-2xl font-bold text-gray-900">{user.matricNumber}</h3>
+            <span className={`inline-block px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest mt-2 ${
+              user.isCourseRep ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+            }`}>
+              {user.isCourseRep ? 'Course Representative' : 'ICH Student'}
+            </span>
+          </div>
+        </div>
 
-        {/* Personal Details */}
-        <section className="bg-white rounded-[2.5rem] border border-slate-200 p-8 shadow-sm">
-          <div className="flex items-center gap-2 mb-8">
-            <div className="w-2 h-2 bg-indigo-600 rounded-full" />
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Personal Identity</h3>
+        <form onSubmit={handleUpdatePassword} className="space-y-6 pt-8 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="google-font font-bold text-gray-900 flex items-center uppercase text-xs tracking-widest">
+              <Lock size={16} className="mr-2 text-blue-600" />
+              Security Settings
+            </h4>
           </div>
           
-          <form onSubmit={handleUpdateProfile} className="space-y-6">
-            <div className="flex flex-col md:flex-row gap-8 items-start">
-              <div className="relative group">
-                <img src={avatar} alt={user.name} className="w-32 h-32 rounded-[2.5rem] border-4 border-slate-50 shadow-xl object-cover transition-transform group-hover:scale-105" />
-                <label className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 rounded-[2.5rem] cursor-pointer transition-opacity">
-                   <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                   <input type="file" className="hidden" onChange={(e) => {
-                     if (e.target.files?.[0]) {
-                       const url = URL.createObjectURL(e.target.files[0]);
-                       setAvatar(url);
-                     }
-                   }} />
-                </label>
-              </div>
-
-              <div className="flex-1 w-full space-y-4">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Full Name</label>
-                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Institutional Email</label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm" />
-                </div>
-                <button type="submit" className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">Update Profile</button>
-              </div>
-            </div>
-          </form>
-        </section>
-
-        {/* Academic Alerts */}
-        <section className="bg-white rounded-[2.5rem] border border-slate-200 p-8 shadow-sm">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">Curriculum Reminders</h3>
-              <p className="text-xs text-slate-400 mt-1 font-medium">Automatic alerts for classes and exams</p>
-            </div>
-            <button 
-              onClick={toggleNotifications}
-              className={`w-14 h-7 rounded-full p-1 transition-colors ${preferences.notificationsEnabled ? 'bg-indigo-600' : 'bg-slate-200'}`}
-            >
-              <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${preferences.notificationsEnabled ? 'translate-x-7' : 'translate-x-0'}`} />
-            </button>
-          </div>
-
-          {preferences.notificationsEnabled && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-4">
-              {(Object.keys(preferences.defaultLeadTimes) as EventType[]).map((type) => (
-                <div key={type} className="p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{type}</span>
-                    <span className="text-xs font-black text-indigo-600">{preferences.defaultLeadTimes[type]}m</span>
-                  </div>
-                  <input 
-                    type="range" min="15" max="4320" step="15"
-                    value={preferences.defaultLeadTimes[type]}
-                    onChange={(e) => updateLeadTime(type, parseInt(e.target.value))}
-                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                  />
-                </div>
-              ))}
+          {success && (
+            <div className="bg-green-50 text-green-700 p-4 rounded-2xl text-sm border border-green-100 font-medium">
+              {success}
             </div>
           )}
-        </section>
 
-        {/* Functional Log Out Section */}
-        <section className="bg-rose-50/50 rounded-[2.5rem] border border-rose-100 p-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <h3 className="text-[10px] font-black text-rose-500 uppercase tracking-[0.2em]">Destructive Actions</h3>
-              <p className="text-xs text-rose-400 font-medium mt-1">End your current session immediately</p>
+          <div className="space-y-3">
+            <label className="text-sm font-bold text-gray-700">Change Password</label>
+            <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-3">
+              <input
+                type="password"
+                placeholder="New password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="flex-1 px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all font-medium"
+                disabled={isUpdating}
+              />
+              <button
+                type="submit"
+                disabled={newPassword.length < 4 || isUpdating}
+                className="px-8 py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-200 flex items-center justify-center whitespace-nowrap"
+              >
+                {isUpdating ? <Loader2 className="animate-spin h-5 w-5" /> : 'Save Changes'}
+              </button>
             </div>
-            {/* The Logout button below is wired directly to the handleLogout passed from App */}
-            <button 
-              onClick={onLogout} 
-              className="px-8 py-4 bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-lg shadow-rose-200"
-            >
-              Log Out of Session
-            </button>
           </div>
-        </section>
+        </form>
       </div>
 
-      <footer className="mt-16 text-center opacity-30">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">EduStream CORE v1.0.8</p>
-      </footer>
+      <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 divide-y divide-gray-50 overflow-hidden mb-6">
+        <button className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition-all group">
+          <div className="flex items-center text-gray-700 font-bold">
+            <Bell size={22} className="mr-4 text-gray-400 group-hover:text-blue-500 transition-colors" /> Push Notifications
+          </div>
+          <div className="w-12 h-6 bg-blue-600 rounded-full relative transition-colors">
+            <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div>
+          </div>
+        </button>
+        <button className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition-all group">
+          <div className="flex items-center text-gray-700 font-bold">
+            <Shield size={22} className="mr-4 text-gray-400 group-hover:text-blue-500 transition-colors" /> Privacy & Terms
+          </div>
+          <ChevronRight size={18} className="text-gray-300" />
+        </button>
+      </div>
+
+      <button 
+        onClick={onLogout}
+        className="w-full px-8 py-6 bg-red-50 text-red-600 font-black rounded-[32px] hover:bg-red-100 transition-all flex items-center justify-center space-x-2 border border-red-100"
+      >
+        <LogOut size={22} />
+        <span>LOG OUT OF SESSION</span>
+      </button>
+      
+      <p className="text-center text-gray-400 text-[10px] font-black tracking-widest mt-12 uppercase">
+        ICH Hub v1.0.4 • Powered by Neon SQL
+      </p>
     </div>
   );
 };
