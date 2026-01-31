@@ -13,6 +13,7 @@ export interface Material {
   pdfUrl: string;
   uploadedBy: string;
   uploadedAt: string;
+  isSyncing?: boolean; // New: for background state
 }
 
 export interface ScheduleItem {
@@ -22,6 +23,11 @@ export interface ScheduleItem {
   endTime: string;
   courseCode: string;
   venue: string;
+  isOnline?: boolean;
+  link?: string;
+  attachmentUrl?: string;
+  eventDate?: string;
+  isSyncing?: boolean; // New: for background state
 }
 
 export enum Page {

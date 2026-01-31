@@ -30,11 +30,14 @@ CREATE TABLE schedules (
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
     course_code VARCHAR(10) NOT NULL,
-    venue VARCHAR(100)
+    venue VARCHAR(100),
+    is_online BOOLEAN DEFAULT FALSE,
+    link TEXT,
+    attachment_url TEXT,
+    event_date DATE
 );
 
 -- Insert Default Course Rep
--- Note: Password is set to matric number by default as per requirements
 INSERT INTO users (matric_number, password, is_course_rep) 
 VALUES ('2025/PS/ICH/0034', '2025/PS/ICH/0034', TRUE)
 ON CONFLICT (matric_number) DO NOTHING;
