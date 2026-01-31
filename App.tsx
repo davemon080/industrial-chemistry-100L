@@ -9,6 +9,7 @@ import CourseDetail from './pages/CourseDetail';
 import AddMaterial from './pages/AddMaterial';
 import Schedule from './pages/Schedule';
 import AddSchedule from './pages/AddSchedule';
+import EditSchedule from './pages/EditSchedule';
 import Guide from './pages/Guide';
 import Settings from './pages/Settings';
 import Navigation from './components/Navigation';
@@ -135,6 +136,36 @@ const App: React.FC = () => {
     }
   }, [refreshSchedules]);
 
+  const startScheduleUpdate = useCallback(async (id: string, item: Omit<ScheduleItem, 'id'>) => {
+    setIsGlobalSyncing(true);
+    try {
+      await dbService.updateSchedule(id, item);
+      await refreshSchedules();
+    } catch (err) {
+      console.error("Update failed", err);
+      throw err;
+    } finally {
+      setIsGlobalSyncing(false);
+    }
+  }, [refreshSchedules]);
+
+  const startScheduleDelete = useCallback(async (id: string) => {
+    setIsGlobalSyncing(true);
+    try {
+      const success = await dbService.deleteSchedule(id);
+      if (success) {
+        setCachedSchedules(prev => prev.filter(s => s.id !== id));
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error("Delete failed", err);
+      return false;
+    } finally {
+      setIsGlobalSyncing(false);
+    }
+  }, []);
+
   const showNav = user && !['/login', '/register'].includes(location.pathname);
   const mainTabs = ['/courses', '/schedule', '/guide', '/settings'];
   const showHeaderIcons = user && mainTabs.includes(location.pathname);
@@ -199,11 +230,12 @@ const App: React.FC = () => {
                 pendingSchedules={pendingSchedules} 
                 onRefresh={refreshSchedules}
                 syncError={syncError}
-                onDeleteLocal={(id) => setCachedSchedules(prev => prev.filter(s => s.id !== id))}
+                onDelete={startScheduleDelete}
               />
             ) : <Navigate to="/login" />} 
           />
           <Route path="/schedule/add" element={user ? <AddSchedule user={user} onAdd={startScheduleUpload} /> : <Navigate to="/login" />} />
+          <Route path="/schedule/edit/:id" element={user ? <EditSchedule user={user} cachedSchedules={cachedSchedules} onUpdate={startScheduleUpdate} /> : <Navigate to="/login" />} />
           
           <Route path="/guide" element={user ? <Guide /> : <Navigate to="/login" />} />
           <Route path="/settings" element={user ? <Settings user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} />

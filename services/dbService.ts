@@ -1,3 +1,4 @@
+
 import { neon } from '@neondatabase/serverless';
 import { User, Material, ScheduleItem } from '../types';
 import { COURSE_REP_MATRIC } from '../constants';
@@ -5,7 +6,6 @@ import { COURSE_REP_MATRIC } from '../constants';
 const DATABASE_URL = 'postgresql://neondb_owner:npg_uxpT2GyVeIl6@ep-floral-shape-ahpk8j2y-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require';
 const sql = neon(DATABASE_URL);
 
-// Helper for exponential backoff retry
 const withRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
   try {
     return await fn();
@@ -38,24 +38,26 @@ const mapMaterial = (dbMat: any): Material => ({
     : new Date(dbMat.uploaded_at).toISOString()
 });
 
-const mapSchedule = (dbSch: any): ScheduleItem => ({
-  id: dbSch.id.toString(),
-  day: dbSch.day_of_week,
-  startTime: dbSch.start_time,
-  endTime: dbSch.end_time,
-  courseCode: dbSch.course_code,
-  venue: dbSch.venue,
-  isOnline: dbSch.is_online,
-  link: dbSch.link,
-  attachmentUrl: dbSch.attachment_url,
-  eventDate: dbSch.event_date ? new Date(dbSch.event_date).toISOString().split('T')[0] : undefined
-});
+const mapSchedule = (dbSch: any): ScheduleItem => {
+  // We use the string returned by TO_CHAR to avoid any Date object timezone shifting
+  return {
+    id: dbSch.id.toString(),
+    day: dbSch.day_of_week,
+    startTime: dbSch.start_time.substring(0, 5),
+    endTime: dbSch.end_time.substring(0, 5),
+    courseCode: dbSch.course_code,
+    venue: dbSch.venue,
+    isOnline: dbSch.is_online,
+    link: dbSch.link,
+    attachmentUrl: dbSch.attachment_url,
+    eventDate: dbSch.event_date_str || null
+  };
+};
 
 export const dbService = {
   register: async (matricNumber: string): Promise<User | null> => {
     try {
       const result = await withRetry(async () => {
-        // Fix: Added type assertion to any[] to avoid 'Property length does not exist on type unknown'
         const existing = (await sql`SELECT * FROM users WHERE matric_number = ${matricNumber}`) as any[];
         if (existing.length > 0) return null;
         const isRep = matricNumber === COURSE_REP_MATRIC;
@@ -74,7 +76,6 @@ export const dbService = {
 
   login: async (matricNumber: string, password?: string): Promise<User | null> => {
     try {
-      // Fix: Added type assertion to any[] to ensure compatibility with array operations
       const result = (await withRetry(() => sql`
         SELECT * FROM users 
         WHERE matric_number = ${matricNumber} 
@@ -100,7 +101,6 @@ export const dbService = {
 
   getMaterials: async (courseCode: string): Promise<Material[]> => {
     try {
-      // Fix: Added type assertion to any[] to resolve 'Property map does not exist on type unknown'
       const result = (await withRetry(() => sql`
         SELECT * FROM materials 
         WHERE course_code = ${courseCode}
@@ -109,13 +109,12 @@ export const dbService = {
       return result.map(mapMaterial);
     } catch (error) {
       console.error('Get materials error:', error);
-      throw error; // Throw so the caller can handle the UI state
+      throw error;
     }
   },
 
   addMaterial: async (material: Omit<Material, 'id' | 'uploadedAt'>): Promise<Material | null> => {
     try {
-      // Fix: Added type assertion to any[]
       const result = (await withRetry(() => sql`
         INSERT INTO materials (course_code, title, pdf_url, uploaded_by)
         VALUES (${material.courseCode}, ${material.title}, ${material.pdfUrl}, ${material.uploadedBy})
@@ -141,8 +140,11 @@ export const dbService = {
 
   getSchedules: async (): Promise<ScheduleItem[]> => {
     try {
-      // Fix: Added type assertion to any[] to resolve 'Property map does not exist on type unknown'
-      const result = (await withRetry(() => sql`SELECT * FROM schedules`)) as any[];
+      // Use TO_CHAR to force the DB to return a string, bypassing driver timezone logic
+      const result = (await withRetry(() => sql`
+        SELECT *, TO_CHAR(event_date, 'YYYY-MM-DD') as event_date_str 
+        FROM schedules
+      `)) as any[];
       return result.map(mapSchedule);
     } catch (error) {
       console.error('Get schedules error:', error);
@@ -152,15 +154,38 @@ export const dbService = {
 
   addSchedule: async (item: Omit<ScheduleItem, 'id'>): Promise<ScheduleItem | null> => {
     try {
-      // Fix: Added type assertion to any[]
       const result = (await withRetry(() => sql`
         INSERT INTO schedules (day_of_week, start_time, end_time, course_code, venue, is_online, link, attachment_url, event_date)
-        VALUES (${item.day}, ${item.startTime}, ${item.endTime}, ${item.courseCode}, ${item.venue}, ${item.isOnline || false}, ${item.link || null}, ${item.attachmentUrl || null}, ${item.event_date || null})
-        RETURNING *
+        VALUES (${item.day}, ${item.startTime}, ${item.endTime}, ${item.courseCode}, ${item.venue}, ${item.isOnline || false}, ${item.link || null}, ${item.attachmentUrl || null}, ${item.eventDate || null})
+        RETURNING *, TO_CHAR(event_date, 'YYYY-MM-DD') as event_date_str
       `)) as any[];
       return mapSchedule(result[0]);
     } catch (error) {
       console.error('Add schedule error:', error);
+      return null;
+    }
+  },
+
+  updateSchedule: async (id: string, item: Omit<ScheduleItem, 'id'>): Promise<ScheduleItem | null> => {
+    try {
+      const numericId = Number(id);
+      const result = (await withRetry(() => sql`
+        UPDATE schedules 
+        SET day_of_week = ${item.day}, 
+            start_time = ${item.startTime}, 
+            end_time = ${item.endTime}, 
+            course_code = ${item.courseCode}, 
+            venue = ${item.venue}, 
+            is_online = ${item.isOnline || false}, 
+            link = ${item.link || null}, 
+            attachment_url = ${item.attachmentUrl || null}, 
+            event_date = ${item.eventDate || null}
+        WHERE id = ${numericId}
+        RETURNING *, TO_CHAR(event_date, 'YYYY-MM-DD') as event_date_str
+      `)) as any[];
+      return mapSchedule(result[0]);
+    } catch (error) {
+      console.error('Update schedule error:', error);
       return null;
     }
   },
