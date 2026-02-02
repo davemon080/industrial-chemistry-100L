@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>AI App - Login</title>
+<link rel="stylesheet" href="../style.css" />
+<style>
+  body {
+    justify-content: center;
+    align-items: center;
+    padding: 0 20px;
+  }
+  .login-container {
+    background: var(--surface);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 30px 20px;
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    border: 1px solid var(--border);
+  }
+  .login-container h2 {
+    text-align: center;
+    color: var(--text);
+    margin-bottom: 20px;
+    font-size: 24px;
+    font-weight: 600;
+  }
+  .input-group {
+    margin-bottom: 15px;
+  }
+  .input-group label {
+    display: block;
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .input-group input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 17px;
+    color: var(--text);
+    background: var(--surface-soft);
+    -webkit-appearance: none; /* Remove default iOS styling */
+  }
+  .input-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+  }
+  .btn-primary {
+    width: 100%;
+    padding: 14px 20px;
+    background: var(--accent);
+    color: var(--surface);
+    border: none;
+    border-radius: 10px;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    -webkit-appearance: none;
+  }
+  .btn-primary:hover {
+    background: #0056b3;
+  }
+  .link-text {
+    text-align: center;
+    margin-top: 15px;
+    font-size: 15px;
+  }
+  .link-text a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .link-text a:hover {
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+  <div class="login-container">
+    <h2>Login</h2>
+    <form id="loginForm">
+      <div class="input-group">
+        <label for="matricNumber">Matric Number</label>
+        <input type="text" id="matricNumber" placeholder="e.g., 2025/PS/ICH/0001" required />
+      </div>
+      <div class="input-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Enter your password" required />
+      </div>
+      <button type="submit" class="btn-primary">Login</button>
+    </form>
+    <div class="link-text">
+      Don't have an account? <a href="register.html">Register</a>
+    </div>
+  </div>
+
+  <script src="../auth.js"></script>
+</body>
+</html>

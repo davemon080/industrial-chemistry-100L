@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>AI App - Course Details</title>
+<link rel="stylesheet" href="../style.css" />
+<style>
+  .course-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .course-header h2 {
+    font-size: 28px;
+    font-weight: 700;
+  }
+  #addMaterialBtn {
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .material-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  .material-item {
+    display: flex;
+    align-items: center;
+    background: var(--surface);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 20px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .material-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .material-icon {
+    margin-right: 20px;
+    color: var(--accent);
+  }
+  .material-info {
+    flex: 1;
+  }
+  .material-title {
+    font-weight: 600;
+    font-size: 18px;
+  }
+  .material-type {
+    font-size: 14px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+  <header>
+    <a href="../index.html" style="position: absolute; left: 16px; color: var(--accent); text-decoration: none; font-size: 16px;">&lt; Back</a>
+    Course Details
+  </header>
+
+  <main>
+    <section class="page active">
+      <div class="course-header">
+        <h2 id="courseTitle"></h2>
+        <button id="addMaterialBtn" class="btn-primary" style="display: none;">Add Material</button>
+      </div>
+      <div id="materialList" class="material-list">
+        <!-- Materials will be dynamically inserted here -->
+      </div>
+    </section>
+  </main>
+
+  <div id="addMaterialModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close-btn">&times;</span>
+      <h2>Add New Material</h2>
+      <form id="addMaterialForm">
+        <div class="input-group">
+          <label for="materialTitle">Title</label>
+          <input type="text" id="materialTitle" required />
+        </div>
+        <div class="input-group">
+          <label for="materialType">Type</label>
+          <select id="materialType">
+            <option value="pdf">PDF</option>
+            <option value="youtube">YouTube</option>
+          </select>
+        </div>
+        <div id="pdfInputGroup" class="input-group">
+          <label for="pdfFile">PDF File</label>
+          <input type="file" id="pdfFile" accept=".pdf" />
+        </div>
+        <div id="youtubeInputGroup" class="input-group" style="display: none;">
+          <label for="youtubeLink">YouTube Video ID</label>
+          <input type="text" id="youtubeLink" />
+        </div>
+        <div id="progressBarContainer" style="display: none;">
+          <div id="progressBar"></div>
+        </div>
+        <button type="submit" class="btn-primary">Add</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="../course-details.js"></script>
+</body>
+</html>
