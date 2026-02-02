@@ -1,7 +1,0 @@
-{
-  "name": "ICH Student Hub",
-  "description": "A comprehensive study platform for 100L Industrial Chemistry students to access study materials, schedules, and guides with an intuitive Google AI-inspired interface.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}
