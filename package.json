@@ -1,3 +1,4 @@
+
 {
   "name": "copy-of-classsync-pro",
   "private": true,
@@ -10,7 +11,8 @@
   },
   "dependencies": {
     "react-dom": "^19.2.4",
-    "react": "^19.2.4"
+    "react": "^19.2.4",
+    "@neondatabase/serverless": "^1.0.4"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

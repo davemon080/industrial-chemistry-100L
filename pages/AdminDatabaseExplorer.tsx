@@ -1,0 +1,459 @@
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { pool } from '../db';
+import { appCache } from '../cache';
+import { Icons } from '../icons';
+import { ToastType } from '../components/Toast';
+import { ConfirmModal } from '../components/ConfirmModal';
+
+interface AdminDatabaseExplorerProps {
+  onDataChange?: () => void;
+  showToast?: (msg: string, type?: ToastType) => void;
+}
+
+export const AdminDatabaseExplorer: React.FC<AdminDatabaseExplorerProps> = ({ onDataChange, showToast }) => {
+  const [tables, setTables] = useState<string[]>([]);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [tableData, setTableData] = useState<any[]>([]);
+  const [tableColumns, setTableColumns] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [queryResult, setQueryResult] = useState<any | null>(null);
+  const [activeTab, setActiveTab] = useState<'tables' | 'query' | 'cache'>('tables');
+  const [isInserting, setIsInserting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [activeRow, setActiveRow] = useState<any>(null);
+  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [connectionInfo, setConnectionInfo] = useState<any>(null);
+  const [cacheStats, setCacheStats] = useState(appCache.getStats());
+  
+  const [rowToDelete, setRowToDelete] = useState<any | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isProcessingDelete, setIsProcessingDelete] = useState(false);
+
+  const fetchTables = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name");
+      setTables(res.rows.map(r => r.table_name));
+      
+      const urlString = pool.options.connectionString as string;
+      const url = new URL(urlString);
+      setConnectionInfo({
+        host: url.host,
+        user: url.username,
+        database: url.pathname.replace('/', '')
+      });
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTables();
+    if (activeTab === 'cache') {
+      setCacheStats(appCache.getStats());
+    }
+  }, [fetchTables, activeTab]);
+
+  const fetchTableData = async (tableName: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      setSelectedTable(tableName);
+      setFormData({});
+      
+      const columnsRes = await pool.query(`
+        SELECT column_name, data_type, is_nullable, column_default 
+        FROM information_schema.columns 
+        WHERE table_name = $1 
+        ORDER BY ordinal_position`, [tableName]);
+      setTableColumns(columnsRes.rows);
+
+      const dataRes = await pool.query(`SELECT * FROM ${tableName} LIMIT 200`);
+      setTableData(dataRes.rows);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRunQuery = async () => {
+    if (!query.trim()) return;
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const res = await pool.query(query);
+      const lowerQuery = query.toLowerCase();
+      
+      if (lowerQuery.includes('insert') || lowerQuery.includes('delete') || lowerQuery.includes('update')) {
+        appCache.clear();
+        setCacheStats(appCache.getStats());
+        if (onDataChange) onDataChange();
+        showToast?.("DML Query Executed", "success");
+      }
+
+      setQueryResult({
+        rows: res.rows,
+        rowCount: res.rowCount,
+        fields: res.fields.map(f => f.name)
+      });
+    } catch (err: any) {
+      setError(err.message);
+      setQueryResult(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getPKColumn = async (tableName: string) => {
+    const pkRes = await pool.query(`
+      SELECT kcu.column_name 
+      FROM information_schema.table_constraints tc 
+      JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name 
+      WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_name = $1`, [tableName]);
+    return pkRes.rows[0]?.column_name;
+  };
+
+  const handleCommitInsert = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTable) return;
+    setIsLoading(true);
+    try {
+      const columns = Object.keys(formData);
+      const values = Object.values(formData);
+      const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+      await pool.query(`INSERT INTO ${selectedTable} (${columns.join(', ')}) VALUES (${placeholders})`, values);
+      appCache.clear();
+      setCacheStats(appCache.getStats());
+      showToast?.("Record Manifested", "success");
+      setIsInserting(false);
+      fetchTableData(selectedTable);
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      showToast?.(`Error: ${err.message}`, "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCommitUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTable || !activeRow) return;
+    setIsLoading(true);
+    try {
+      const pk = await getPKColumn(selectedTable);
+      if (!pk) throw new Error("PK Missing");
+      const entries = Object.entries(formData);
+      const setClauses = entries.map(([key], i) => `${key} = $${i + 1}`).join(', ');
+      const values = entries.map(([_, val]) => val);
+      await pool.query(`UPDATE ${selectedTable} SET ${setClauses} WHERE ${pk} = $${entries.length + 1}`, [...values, activeRow[pk]]);
+      appCache.clear();
+      setCacheStats(appCache.getStats());
+      showToast?.("Record Identity Refined", "success");
+      setIsEditing(false);
+      fetchTableData(selectedTable);
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      showToast?.(`Update Error: ${err.message}`, "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const triggerDeleteRow = async (row: any) => {
+    setRowToDelete(row);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteRow = async () => {
+    if (!selectedTable || !rowToDelete) return;
+    const pk = await getPKColumn(selectedTable);
+    if (!pk) {
+      showToast?.("Delete Error: No unique PK", "error");
+      setIsDeleteConfirmOpen(false);
+      return;
+    }
+    setIsProcessingDelete(true);
+    try {
+      await pool.query(`DELETE FROM ${selectedTable} WHERE ${pk} = $1`, [rowToDelete[pk]]);
+      setTableData(prev => prev.filter(r => r[pk] !== rowToDelete[pk]));
+      appCache.clear();
+      setCacheStats(appCache.getStats());
+      showToast?.("Record Purged", "success");
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      showToast?.(`Purge Conflict: ${err.message}`, "error");
+    } finally {
+      setIsProcessingDelete(false);
+      setIsDeleteConfirmOpen(false);
+      setRowToDelete(null);
+    }
+  };
+
+  const openEditModal = (row: any) => {
+    setActiveRow(row);
+    setFormData(row);
+    setIsEditing(true);
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in relative pb-10">
+      {/* DB Header */}
+      <div className="google-card p-5 md:p-6 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          <div className="w-12 h-12 ai-gradient-bg rounded-[12px] flex items-center justify-center text-white shrink-0 shadow-lg">
+            <Icons.Database />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-xl font-bold text-white uppercase tracking-tight truncate">Neon Explorer</h3>
+            {connectionInfo && (
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-0.5 truncate">
+                {connectionInfo.database}@{connectionInfo.host}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-2 w-full md:w-auto overflow-x-auto no-scrollbar pb-1 md:pb-0">
+           <button onClick={fetchTables} className="h-10 px-4 bg-white/5 border border-white/10 text-[9px] font-black text-white uppercase tracking-widest rounded-[8px] hover:bg-white/10 transition-all flex items-center gap-2 shrink-0 btn-feedback">
+             <Icons.Refresh /> Sync
+           </button>
+        </div>
+      </div>
+
+      {/* Responsive Tab Navigation */}
+      <div className="flex overflow-x-auto no-scrollbar bg-white/5 p-1 rounded-[12px] border border-white/10 w-full max-w-full">
+        <button 
+          onClick={() => setActiveTab('tables')} 
+          className={`px-4 md:px-6 py-2.5 rounded-[10px] text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shrink-0 ${activeTab === 'tables' ? 'bg-white text-black' : 'text-slate-500 hover:text-white'}`}
+        >
+          <Icons.Database /> <span className="hidden sm:inline">Schema</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('query')} 
+          className={`px-4 md:px-6 py-2.5 rounded-[10px] text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shrink-0 ${activeTab === 'query' ? 'bg-white text-black' : 'text-slate-500 hover:text-white'}`}
+        >
+          <Icons.Terminal /> <span className="hidden sm:inline">Studio</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('cache')} 
+          className={`px-4 md:px-6 py-2.5 rounded-[10px] text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shrink-0 ${activeTab === 'cache' ? 'bg-white text-black' : 'text-slate-500 hover:text-white'}`}
+        >
+          <Icons.Refresh /> <span className="hidden sm:inline">Cache</span>
+        </button>
+      </div>
+
+      {activeTab === 'tables' ? (
+        <div className="flex flex-col lg:grid lg:grid-cols-4 gap-6 items-start">
+          {/* Table List: Horizontal on mobile, Vertical on Desktop */}
+          <div className="w-full lg:col-span-1 space-y-3">
+            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Catalogs</h4>
+            <div className="flex lg:flex-col overflow-x-auto no-scrollbar gap-2 lg:gap-0 lg:google-card lg:overflow-hidden lg:rounded-[16px]">
+              {tables.map(t => (
+                <button 
+                  key={t} 
+                  onClick={() => fetchTableData(t)}
+                  className={`px-4 py-2.5 lg:p-4 rounded-[10px] lg:rounded-none text-[10px] lg:text-[11px] font-bold transition-all border lg:border-0 border-white/10 flex items-center justify-between shrink-0 group ${selectedTable === t ? 'bg-white text-black' : 'bg-white/5 lg:bg-transparent text-slate-400 hover:text-white hover:bg-white/5'}`}
+                >
+                  <span className="truncate">{t}</span>
+                  <div className="hidden lg:block"><Icons.ChevronRight /></div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Data Display */}
+          <div className="w-full lg:col-span-3 space-y-4">
+            {selectedTable ? (
+              <>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                   <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 truncate max-w-full">
+                     Dataset: {selectedTable}
+                   </h4>
+                   <button 
+                    onClick={() => { setFormData({}); setIsInserting(true); }}
+                    className="w-full sm:w-auto h-9 px-4 bg-blue-600 text-white rounded-[8px] text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg btn-feedback"
+                   >
+                     <Icons.Plus /> New Row
+                   </button>
+                </div>
+
+                <div className="google-card overflow-hidden relative">
+                  <div className="overflow-x-auto no-scrollbar">
+                    <table className="w-full text-left border-collapse min-w-max">
+                      <thead className="bg-black/40 border-b border-white/10">
+                        <tr>
+                          {tableColumns.map(col => (
+                            <th key={col.column_name} className="p-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                              {col.column_name}
+                              <span className="block font-medium normal-case text-slate-600 text-[8px] mt-0.5">{col.data_type}</span>
+                            </th>
+                          ))}
+                          <th className="p-4 w-24">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tableData.length > 0 ? tableData.map((row, idx) => (
+                          <tr key={idx} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors last:border-0">
+                            {tableColumns.map(col => (
+                              <td key={col.column_name} className="p-4 text-[11px] font-medium text-white max-w-[150px] md:max-w-[250px] truncate">
+                                {row[col.column_name] === null ? <span className="text-slate-700 italic">null</span> : String(row[col.column_name])}
+                              </td>
+                            ))}
+                            <td className="p-4 flex gap-2">
+                              <button onClick={() => openEditModal(row)} className="p-2 text-slate-600 hover:text-blue-500 transition-colors"><Icons.Edit /></button>
+                              <button onClick={() => triggerDeleteRow(row)} className="p-2 text-slate-600 hover:text-rose-500 transition-colors"><Icons.Trash /></button>
+                            </td>
+                          </tr>
+                        )) : (
+                          <tr><td colSpan={tableColumns.length + 1} className="p-20 text-center text-slate-700 font-black uppercase text-[10px] tracking-widest">No data mapped</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="google-card h-64 flex flex-col items-center justify-center p-10 text-slate-700 border-dashed">
+                <Icons.Database />
+                <p className="mt-4 text-[9px] font-black uppercase tracking-[0.2em] text-center">Select table to browse schemas</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : activeTab === 'query' ? (
+        <div className="space-y-6">
+          <div className="google-card p-5 md:p-8 space-y-5">
+             <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">SQL Terminal</h4>
+             <textarea 
+               value={query}
+               onChange={e => setQuery(e.target.value)}
+               spellCheck={false}
+               className="w-full h-48 bg-black/40 border border-white/10 rounded-[12px] p-5 font-mono text-[13px] text-blue-400 focus:border-blue-500 transition-all resize-none outline-none leading-relaxed"
+               placeholder="SELECT * FROM schedules LIMIT 10;"
+             />
+             <div className="flex justify-end">
+                <button 
+                  onClick={handleRunQuery}
+                  disabled={isLoading}
+                  className="w-full sm:w-auto h-12 px-8 ai-gradient-bg text-white rounded-[12px] font-black text-[10px] uppercase tracking-widest shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3"
+                >
+                  {isLoading ? <Icons.Loader /> : <Icons.Terminal />} Execute
+                </button>
+             </div>
+          </div>
+
+          {queryResult && (
+            <div className="google-card overflow-hidden">
+               <div className="p-4 bg-black/40 border-b border-white/10 flex justify-between items-center">
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{queryResult.rowCount} rows returned</span>
+               </div>
+               <div className="overflow-x-auto no-scrollbar">
+                 <table className="w-full text-left border-collapse min-w-max">
+                    <thead className="bg-black/20 border-b border-white/10">
+                      <tr>
+                        {queryResult.fields.map((f: string) => (
+                          <th key={f} className="p-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">{f}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {queryResult.rows.map((row: any, idx: number) => (
+                        <tr key={idx} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors last:border-0">
+                          {queryResult.fields.map((f: string) => (
+                            <td key={f} className="p-4 text-[11px] font-medium text-white">{String(row[f])}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                 </table>
+               </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-6 animate-fade-in">
+           <div className="google-card p-6 md:p-10 space-y-10">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                 <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-600/10 text-blue-500 rounded-[12px] flex items-center justify-center shrink-0 shadow-inner"><Icons.Refresh /></div>
+                    <div>
+                       <h4 className="text-xl font-bold text-white uppercase tracking-tight">Active Cache</h4>
+                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-0.5">{cacheStats.size} persistent indices</p>
+                    </div>
+                 </div>
+                 <button onClick={() => { appCache.clear(); setCacheStats(appCache.getStats()); showToast?.("Cache Purged", "info"); }} className="w-full sm:w-auto h-10 px-6 bg-rose-600/10 border border-rose-600/20 text-rose-500 text-[10px] font-black uppercase tracking-widest rounded-[8px] hover:bg-rose-600/20 transition-all btn-feedback">Flush All</button>
+              </div>
+              
+              <div className="space-y-4">
+                <h5 className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">Inventory</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                   {cacheStats.keys.length > 0 ? cacheStats.keys.map(k => (
+                     <div key={k} className="flex items-center justify-between p-3 bg-white/5 rounded-[12px] border border-white/5">
+                        <span className="text-[10px] font-bold text-blue-400 font-mono truncate mr-2">{k}</span>
+                        <button onClick={() => { appCache.delete(k); setCacheStats(appCache.getStats()); }} className="text-slate-700 hover:text-rose-500 transition-colors p-1"><Icons.X /></button>
+                     </div>
+                   )) : <p className="text-[10px] font-black text-slate-800 uppercase text-center py-10 w-full col-span-full">Neutral state</p>}
+                </div>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Responsive Edit/Insert Modal */}
+      {(isInserting || isEditing) && selectedTable && (
+        <div className="fixed inset-0 z-[1200] flex items-end sm:items-center justify-center p-0 sm:p-6">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => { setIsInserting(false); setIsEditing(false); }} />
+          <div className="relative google-card w-full max-w-lg p-6 md:p-8 animate-fade-in space-y-6 bg-[#161a22] rounded-t-[24px] sm:rounded-[24px]">
+             <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                   <h3 className="text-xl font-bold text-white uppercase tracking-tight truncate">{isEditing ? 'Modify' : 'Manifest'} Record</h3>
+                   <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">{selectedTable}</p>
+                </div>
+                <button onClick={() => { setIsInserting(false); setIsEditing(false); }} className="w-10 h-10 bg-white/5 border border-white/10 rounded-[10px] text-slate-500 hover:text-white transition-all shrink-0"><Icons.X /></button>
+             </div>
+
+             <form onSubmit={isEditing ? handleCommitUpdate : handleCommitInsert} className="space-y-4 max-h-[50vh] overflow-y-auto pr-1 no-scrollbar">
+                {tableColumns.map(col => (
+                  <div key={col.column_name} className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center justify-between">
+                      {col.column_name} 
+                      <span className="text-slate-700 text-[8px] font-normal">{col.data_type}</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      value={formData[col.column_name] || ''}
+                      placeholder={col.column_default || (col.is_nullable === 'YES' ? 'null' : 'required')}
+                      onChange={e => setFormData({ ...formData, [col.column_name]: e.target.value })}
+                      className="w-full h-11 bg-black/20 border border-white/10 rounded-[10px] px-4 font-bold text-white focus:border-blue-500 outline-none transition-all placeholder:text-slate-800 text-sm"
+                    />
+                  </div>
+                ))}
+                <div className="pt-4 sticky bottom-0 bg-[#161a22]">
+                  <button disabled={isLoading} className="w-full h-12 bg-blue-600 text-white rounded-[12px] font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 btn-feedback">
+                    {isLoading ? <Icons.Loader /> : <Icons.Save />} Commit
+                  </button>
+                </div>
+             </form>
+          </div>
+        </div>
+      )}
+
+      {isDeleteConfirmOpen && (
+        <ConfirmModal 
+          isOpen={isDeleteConfirmOpen} 
+          onClose={() => !isProcessingDelete && setIsDeleteConfirmOpen(false)} 
+          onConfirm={confirmDeleteRow} 
+          title="Terminal Purge" 
+          message="This action will terminate this record from the institution repository forever."
+          isLoading={isProcessingDelete}
+        />
+      )}
+    </div>
+  );
+};
