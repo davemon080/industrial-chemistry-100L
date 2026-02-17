@@ -26,11 +26,13 @@ export const Dashboard: React.FC<{
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const todayStr = useMemo(() => formatDateLocal(new Date()), []);
   const isLoading = schedules.length === 0;
 
   const filteredSchedules = useMemo(() => {
     return schedules
       .filter(s => 
+        (s.date >= todayStr) && // Automatic Termination of Past Sessions from main view
         (filter === 'All' || s.type === filter) && 
         (selectedDate === 'All' || s.date === selectedDate)
       )
@@ -39,7 +41,7 @@ export const Dashboard: React.FC<{
         if (dateCompare !== 0) return dateCompare;
         return a.time.localeCompare(b.time);
       });
-  }, [schedules, filter, selectedDate]);
+  }, [schedules, filter, selectedDate, todayStr]);
 
   const timelineDates = useMemo(() => {
     const dates = [];
@@ -119,11 +121,14 @@ export const Dashboard: React.FC<{
              {timelineDates.map(d => {
                const date = parseDatabaseDate(d);
                const isSelected = selectedDate === d;
+               const isToday = d === todayStr;
                const hasEvents = getEventsForDate(date).length > 0;
                return (
                  <button key={d} onClick={() => setSelectedDate(d)} className={`flex-shrink-0 snap-start w-20 h-20 rounded-2xl flex flex-col items-center justify-center border relative transition-all btn-feedback ${isSelected ? 'bg-white text-black border-white shadow-xl' : 'bg-white/5 text-slate-500 border-white/10 hover:border-white/20'}`}>
                    {hasEvents && !isSelected && <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-500 rounded-full"></span>}
-                   <span className="text-[9px] font-black uppercase mb-0.5 tracking-widest opacity-60">{date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                   <span className={`text-[9px] font-black uppercase mb-0.5 tracking-widest ${isToday ? 'text-blue-500' : 'opacity-60'}`}>
+                     {isToday ? 'TODAY' : date.toLocaleDateString('en-US', { weekday: 'short' })}
+                   </span>
                    <span className="text-xl font-black">{date.getDate()}</span>
                    <span className="text-[9px] font-bold uppercase opacity-40 mt-0.5">{date.toLocaleDateString('en-US', { month: 'short' })}</span>
                  </button>
@@ -152,7 +157,7 @@ export const Dashboard: React.FC<{
                <div className="col-span-full py-32 flex flex-col items-center justify-center bg-white/5 border border-dashed border-white/10 rounded-2xl text-slate-600">
                  <div className="w-12 h-12 mb-6 text-slate-700"><Icons.Calendar /></div>
                  <h4 className="text-xl font-bold text-white tracking-tight">Timeline Static</h4>
-                 <p className="text-xs font-medium mt-1 opacity-60">No academic events detected.</p>
+                 <p className="text-xs font-medium mt-1 opacity-60">No future academic events detected.</p>
                </div>
              )}
           </div>
@@ -179,7 +184,7 @@ export const Dashboard: React.FC<{
               if (!date) return <div key={`empty-${i}`} className="border-r border-b border-white/5 bg-black/5 last:border-r-0" />;
               const events = getEventsForDate(date);
               const dStr = formatDateLocal(date);
-              const isToday = dStr === formatDateLocal(new Date());
+              const isToday = dStr === todayStr;
               return (
                 <div 
                   key={i} 

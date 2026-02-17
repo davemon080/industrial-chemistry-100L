@@ -5,6 +5,7 @@ import { appCache } from './cache';
 import { User, Schedule, AppView, AppNotification } from './types';
 import { Icons } from './icons';
 import { Dashboard } from './pages/Dashboard';
+import { History } from './pages/History';
 import { Profile } from './pages/Profile';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
@@ -274,6 +275,20 @@ export const App: React.FC = () => {
                 showToast={showToast}
               />
             )}
+            {currentView === 'history' && (
+              <History 
+                schedules={schedules} 
+                isAdmin={isAdmin} 
+                customIcons={customIcons} 
+                fetchAllData={fetchAllData} 
+                setViewingDoc={setViewingDoc}
+                onEditRequest={(s) => {
+                  setEditingSchedule(s);
+                  setCurrentView('admin_portal');
+                }}
+                showToast={showToast}
+              />
+            )}
             {currentView === 'profile' && currentUser && <Profile currentUser={currentUser} setCurrentUser={setCurrentUser} />}
             {currentView === 'admin_portal' && isAdmin && (
               <AdminPortal 
@@ -307,6 +322,10 @@ export const App: React.FC = () => {
             <button onClick={() => { setCurrentView('dashboard'); setIsMenuOpen(false); }} className={`flex items-center gap-4 w-full p-4 rounded-[12px] text-xs font-bold transition-all ${currentView === 'dashboard' ? 'bg-white text-black' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
               <Icons.Calendar />
               <span className="uppercase tracking-widest text-[9px] font-black">Timeline</span>
+            </button>
+            <button onClick={() => { setCurrentView('history'); setIsMenuOpen(false); }} className={`flex items-center gap-4 w-full p-4 rounded-[12px] text-xs font-bold transition-all ${currentView === 'history' ? 'bg-white text-black' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+              <Icons.History />
+              <span className="uppercase tracking-widest text-[9px] font-black">History Archive</span>
             </button>
             {isAdmin ? (
               <button onClick={() => { setCurrentView('admin_portal'); setIsMenuOpen(false); }} className={`flex items-center gap-4 w-full p-4 rounded-[12px] text-xs font-bold transition-all ${currentView === 'admin_portal' ? 'bg-white text-black' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>

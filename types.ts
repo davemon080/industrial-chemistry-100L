@@ -1,7 +1,7 @@
 
 export type CourseCode = 'math101' | 'chm101' | 'chm107' | 'phy101' | 'phy107' | 'bio101' | 'bio107' | 'gst111' | 'cos101';
 export type ClassType = 'Physical' | 'Online';
-export type AppView = 'dashboard' | 'profile' | 'login' | 'signup' | 'admin_portal';
+export type AppView = 'dashboard' | 'profile' | 'login' | 'signup' | 'admin_portal' | 'history';
 export type ScheduleCategory = 'class' | 'assignment' | 'activity';
 export type ViewMode = 'list' | 'calendar';
 
