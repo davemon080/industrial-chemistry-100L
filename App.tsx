@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { sql, pool } from './db';
 import { appCache } from './cache';
-import { User, Schedule, AppView, AppNotification } from './types';
+import { User, Schedule, AppView, AppNotification, Attachment } from './types';
 import { Icons } from './icons';
 import { Dashboard } from './pages/Dashboard';
 import { History } from './pages/History';
@@ -45,21 +45,46 @@ export const App: React.FC = () => {
       } else if (typeof dateVal === 'string') {
         dateVal = dateVal.split('T')[0];
       }
+
+      let givenDateVal = s.given_date;
+      if (givenDateVal instanceof Date) {
+        const y = givenDateVal.getUTCFullYear();
+        const m = String(givenDateVal.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(givenDateVal.getUTCDate()).padStart(2, '0');
+        givenDateVal = `${y}-${m}-${d}`;
+      } else if (typeof givenDateVal === 'string') {
+        givenDateVal = givenDateVal.split('T')[0];
+      }
+
+      // Handle multiple attachments parsing
+      let attachments: Attachment[] = [];
+      if (s.attachment && s.attachment.startsWith('[') && s.attachment.endsWith(']')) {
+        try {
+          attachments = JSON.parse(s.attachment);
+        } catch (e) {
+          attachments = [{ data: s.attachment, type: s.attachment_type || '', name: s.attachment_name || 'Material' }];
+        }
+      } else if (s.attachment) {
+        attachments = [{ data: s.attachment, type: s.attachment_type || '', name: s.attachment_name || 'Material' }];
+      }
+
       return {
         id: s.id,
         category: s.category,
         course: s.course,
         title: s.title,
         date: dateVal || '',
+        givenDate: givenDateVal || '',
         time: s.time || '00:00',
         type: s.type,
         location: s.location,
         instructions: s.instructions,
         createdAt: Number(s.created_at_timestamp || Date.now()),
-        attachment: s.attachment,
+        attachments,
+        attachment: s.attachment, // keep for backward compatibility if needed
         attachmentType: s.attachment_type,
         attachmentName: s.attachment_name
-      } as any;
+      } as Schedule;
     });
   };
 
@@ -69,7 +94,7 @@ export const App: React.FC = () => {
     
     try {
       const fetchPromises: Promise<any>[] = [
-        sql`SELECT id, category, course, title, date, time, type, location, instructions, attachment_name, attachment_type, created_at_timestamp, attachment FROM schedules ORDER BY date ASC, time ASC`,
+        sql`SELECT id, category, course, title, date, given_date, time, type, location, instructions, attachment_name, attachment_type, created_at_timestamp, attachment FROM schedules ORDER BY date ASC, time ASC`,
         sql`SELECT course_code, icon_data FROM custom_icons`
       ];
 
@@ -335,7 +360,7 @@ export const App: React.FC = () => {
             ) : (
               <button onClick={() => { setCurrentView('profile'); setIsMenuOpen(false); }} className={`flex items-center gap-4 w-full p-4 rounded-[12px] text-xs font-bold transition-all ${currentView === 'profile' ? 'bg-white text-black' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
                 <Icons.Shield />
-                <span className="uppercase tracking-widest text-[9px] font-black">Identity</span>
+                <span className="uppercase tracking-widest text-[9px] font-black">Profile</span>
               </button>
             )}
           </div>
@@ -348,7 +373,7 @@ export const App: React.FC = () => {
                </div>
              </div>
              <button onClick={handleSignOut} className="w-full h-12 bg-white/5 border border-white/10 text-rose-500 rounded-[12px] text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2 btn-feedback">
-               <Icons.X /> Terminate Session
+               <Icons.X /> Log out
              </button>
           </div>
         </div>

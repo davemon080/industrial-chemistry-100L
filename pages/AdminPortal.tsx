@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { CourseCode, AppView, ScheduleCategory, ClassType, COURSES, MAX_FILE_SIZE, Schedule } from '../types';
+import { CourseCode, AppView, ScheduleCategory, ClassType, COURSES, MAX_FILE_SIZE, Schedule, Attachment } from '../types';
 import { pool } from '../db';
 import { appCache } from '../cache';
 import { Icons } from '../icons';
@@ -34,12 +34,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [newCategory, setNewCategory] = useState<ScheduleCategory>('class');
   const [newTitle, setNewTitle] = useState('');
   const [newCourse, setNewCourse] = useState<CourseCode>('math101');
-  const [newDate, setNewDate] = useState('');
+  const [newDate, setNewDate] = useState(''); // Due date
+  const [givenDate, setGivenDate] = useState(''); // Assigned date
   const [newTime, setNewTime] = useState('');
   const [newType, setNewType] = useState<ClassType>('Physical');
   const [newLoc, setNewLoc] = useState('');
   const [newInst, setNewInst] = useState('');
-  const [attachmentData, setAttachmentData] = useState<{ data: string, type: string, name: string } | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   useEffect(() => {
     if (editingSchedule) {
@@ -47,44 +48,49 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setNewCategory(editingSchedule.category);
       setNewTitle(editingSchedule.title || '');
       setNewCourse(editingSchedule.course || 'math101');
-      setNewDate(editingSchedule.date);
+      setNewDate(editingSchedule.date || '');
+      setGivenDate(editingSchedule.givenDate || '');
       setNewTime(editingSchedule.time);
       setNewType(editingSchedule.type);
       setNewLoc(editingSchedule.location);
       setNewInst(editingSchedule.instructions);
-      if (editingSchedule.attachment) {
-        setAttachmentData({ 
-          data: editingSchedule.attachment, 
-          type: editingSchedule.attachmentType || '', 
-          name: editingSchedule.attachmentName || 'Attachment' 
-        });
-      } else {
-        setAttachmentData(null);
-      }
+      setAttachments(editingSchedule.attachments || []);
     } else {
       setNewCategory('class');
       setNewTitle('');
       setNewDate('');
+      setGivenDate('');
       setNewTime('');
       setNewType('Physical');
       setNewLoc('');
       setNewInst('');
-      setAttachmentData(null);
+      setAttachments([]);
     }
   }, [editingSchedule]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > MAX_FILE_SIZE) { alert("Institutional Limit: 50MB"); return; }
-    const reader = new FileReader();
-    reader.onload = () => setAttachmentData({ data: reader.result as string, type: file.type, name: file.name });
-    reader.readAsDataURL(file);
+    const files = e.target.files;
+    if (!files) return;
+    
+    Array.from(files).forEach((file: File) => {
+      if (file.size > MAX_FILE_SIZE) { alert(`File ${file.name} exceeds institutional limit: 50MB`); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const newAttachment = { data: reader.result as string, type: file.type, name: file.name };
+        setAttachments(prev => [...prev, newAttachment]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDate) { alert("Action Required: Please select a target date."); return; }
+    // Logic updated: Allow submission even if dates are empty. 
+    // They will manifest as NULL in the database and likely won't show in the current timeline view until scheduled.
     
     setIsSubmitting(true);
     const client = await pool.connect();
@@ -94,56 +100,59 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const now = Date.now();
       const displayTitle = newCategory === 'activity' ? newTitle : `${COURSES[newCourse]}`;
       
+      const attachmentJson = attachments.length > 0 ? JSON.stringify(attachments) : null;
+      
       await client.query('BEGIN');
+
+      const finalDate = agnosticDate || null;
+      const finalGivenDate = newCategory === 'assignment' ? (givenDate || null) : null;
 
       if (editingSchedule) {
         await client.query(`
           UPDATE schedules 
-          SET category = $1, course = $2, title = $3, date = $4, time = $5, type = $6, location = $7, instructions = $8, attachment = $9, attachment_type = $10, attachment_name = $11
-          WHERE id = $12
+          SET category = $1, course = $2, title = $3, date = $4, given_date = $5, time = $6, type = $7, location = $8, instructions = $9, attachment = $10
+          WHERE id = $11
         `, [
           newCategory, 
           newCategory === 'activity' ? null : newCourse, 
           newTitle, 
-          agnosticDate, 
+          finalDate, 
+          finalGivenDate,
           agnosticTime, 
           newType, 
           newLoc, 
           newInst, 
-          attachmentData?.data || null, 
-          attachmentData?.type || null, 
-          attachmentData?.name || null,
+          attachmentJson,
           editingSchedule.id
         ]);
       } else {
         await client.query(`
-          INSERT INTO schedules (category, course, title, date, time, type, location, instructions, created_at_timestamp, attachment, attachment_type, attachment_name)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          INSERT INTO schedules (category, course, title, date, given_date, time, type, location, instructions, created_at_timestamp, attachment)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         `, [
           newCategory, 
           newCategory === 'activity' ? null : newCourse, 
           newTitle, 
-          agnosticDate, 
+          finalDate, 
+          finalGivenDate,
           agnosticTime, 
           newType, 
           newLoc, 
           newInst, 
           now, 
-          attachmentData?.data || null, 
-          attachmentData?.type || null, 
-          attachmentData?.name || null
+          attachmentJson
         ]);
 
-        // Fix: Only insert notifications for users that actually exist in the users table
-        // to avoid Foreign Key constraint violations.
-        await client.query(`
-          INSERT INTO notifications (user_email, title, message, category, is_read)
-          SELECT email, $1, $2, $3, FALSE FROM users
-        `, [
-          displayTitle, 
-          `A new session has been added to the academic timeline: ${agnosticDate}`, 
-          newCategory
-        ]);
+        if (finalDate) {
+          await client.query(`
+            INSERT INTO notifications (user_email, title, message, category, is_read)
+            SELECT email, $1, $2, $3, FALSE FROM users
+          `, [
+            displayTitle, 
+            `A new session has been added to the academic timeline: ${finalDate}`, 
+            newCategory
+          ]);
+        }
       }
 
       await client.query('COMMIT');
@@ -159,9 +168,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     } catch (err: any) {
       await client.query('ROLLBACK');
       console.error("Database Sync Error:", err);
-      // provide a slightly more descriptive hint if it's a constraint issue
-      const isConstraint = err.message?.toLowerCase().includes('constraint');
-      showToast(isConstraint ? "Sync Error: Integrity Protocol Violation." : "Sync Error: Network collision detected.", "error");
+      showToast("Sync Error: Network collision detected.", "error");
     } finally {
       client.release();
       setIsSubmitting(false);
@@ -270,20 +277,43 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
               <div className="pt-8 space-y-8 border-t border-white/5">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Description / Context</label>
-                  <textarea rows={4} placeholder="Additional instructions..." value={newInst} onChange={e => setNewInst(e.target.value)} className="w-full p-6 bg-black/20 border border-white/10 rounded-[12px] font-bold text-white transition-all resize-none placeholder:text-slate-600 outline-none focus:border-blue-500" />
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Lecturer's Comments / Description</label>
+                  <textarea rows={4} placeholder="Write instructions or comments here..." value={newInst} onChange={e => setNewInst(e.target.value)} className="w-full p-6 bg-black/20 border border-white/10 rounded-[12px] font-bold text-white transition-all resize-none placeholder:text-slate-600 outline-none focus:border-blue-500" />
                 </div>
+
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Institutional Artifact (Document)</label>
-                  <div className={`relative h-24 border-2 border-dashed rounded-[12px] flex items-center justify-center transition-all group ${attachmentData ? 'border-emerald-500/50 bg-emerald-500/5 shadow-sm' : 'border-white/10 bg-black/20 hover:border-blue-500/30'}`}>
-                    <input type="file" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-[8px] flex items-center justify-center transition-all ${attachmentData ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-600'}`}><Icons.File /></div>
-                      <div>
-                        <span className="text-xs font-bold text-white truncate max-w-[200px] block">{attachmentData ? attachmentData.name : 'Upload Document'}</span>
-                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest block">Institutional limit: 50MB</span>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Study Materials (Multi-Upload Support)</label>
+                  <div className="flex flex-col gap-4">
+                    <div className="relative h-24 border-2 border-dashed rounded-[12px] flex items-center justify-center transition-all group border-white/10 bg-black/20 hover:border-blue-500/30">
+                      <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-[8px] bg-white/5 text-slate-600 flex items-center justify-center transition-all"><Icons.File /></div>
+                        <div>
+                          <span className="text-xs font-bold text-white">Select Academic Artifacts</span>
+                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest block">Multiple images or documents supported</span>
+                        </div>
                       </div>
                     </div>
+
+                    {attachments.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {attachments.map((att, idx) => (
+                          <div key={idx} className="relative group bg-white/5 border border-white/10 rounded-[12px] p-3 flex items-center gap-3">
+                            <div className="w-8 h-8 shrink-0 bg-blue-600/10 text-blue-500 rounded-lg flex items-center justify-center">
+                              {att.type.includes('image') ? <Icons.Save /> : <Icons.File />}
+                            </div>
+                            <span className="text-[10px] font-bold text-white truncate max-w-full">{att.name}</span>
+                            <button 
+                              type="button"
+                              onClick={() => removeAttachment(idx)}
+                              className="absolute -top-2 -right-2 w-6 h-6 bg-rose-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                            >
+                              <Icons.X />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -309,14 +339,35 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           </fieldset>
 
           <fieldset disabled={isSubmitting} className="lg:col-span-4 space-y-6">
-            <DatePicker value={newDate} onChange={setNewDate} inline={true} label="Calendar Anchor" darkMode={true} />
+            <DatePicker 
+              value={newDate} 
+              onChange={setNewDate} 
+              inline={true} 
+              label={newCategory === 'assignment' ? "Submission Deadline" : "Session Date"} 
+              darkMode={true} 
+            />
+            
+            {newCategory === 'assignment' && (
+              <DatePicker 
+                value={givenDate} 
+                onChange={setGivenDate} 
+                inline={true} 
+                label="Assigned / Given Date" 
+                darkMode={true} 
+              />
+            )}
+            
             <div className="google-card p-8 bg-black/40 border border-white/5 relative overflow-hidden group">
                <div className="absolute top-0 right-0 w-48 h-48 ai-gradient-bg blur-[80px] rounded-full -mr-24 -mt-24 opacity-20"></div>
                <div className="flex items-center gap-3 text-blue-400 mb-4 relative z-10">
                  <Icons.Shield />
                  <h4 className="text-[10px] font-black uppercase tracking-widest">Protocol</h4>
                </div>
-               <p className="text-xs text-slate-400 font-bold leading-relaxed relative z-10 opacity-80 mb-8">Pushed data is synchronized across the institutional network immediately.</p>
+               <p className="text-xs text-slate-400 font-bold leading-relaxed relative z-10 opacity-80 mb-8">
+                 {newCategory === 'assignment' 
+                   ? 'Setting the "Assigned Date" allows the system to calculate the submission window for the students.'
+                   : 'Classes and Activities are manifestation events on the institutional timeline. Dates are optional but recommended for visibility.'}
+               </p>
                <div className="flex items-center gap-4 relative z-10 border-t border-white/5 pt-6">
                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
                  <span className="text-[9px] font-black text-white uppercase tracking-widest">Governance Active</span>

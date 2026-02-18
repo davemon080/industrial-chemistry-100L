@@ -23,17 +23,26 @@ export interface AppNotification {
   created_at: string;
 }
 
+export interface Attachment {
+  data: string;
+  type: string;
+  name: string;
+}
+
 export interface Schedule {
   id: string;
   category: ScheduleCategory;
   course?: CourseCode; 
   title?: string; 
-  date: string; 
+  date: string; // Due Date / Class Date
+  givenDate?: string; // Date Assigned
   time: string; 
   type: ClassType;
   location: string; 
   instructions: string;
   createdAt: number;
+  attachments?: Attachment[];
+  // Legacy fields for DB compatibility
   attachment?: string; 
   attachmentType?: string;
   attachmentName?: string;

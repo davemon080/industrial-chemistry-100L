@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS schedules (
     category VARCHAR(50) NOT NULL CHECK (category IN ('class', 'assignment', 'activity')),
     course VARCHAR(50), 
     title VARCHAR(255), 
-    date DATE NOT NULL,
+    date DATE, -- Made nullable as requested
     given_date DATE, 
     time TIME NOT NULL,
     type VARCHAR(50) NOT NULL CHECK (type IN ('Physical', 'Online')),

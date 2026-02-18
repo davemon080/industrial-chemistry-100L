@@ -1,8 +1,8 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Schedule, COURSES } from '../types';
 import { Icons } from '../icons';
-import { formatTo12Hr, getStatusInfo, parseDatabaseDate } from '../helpers';
+import { formatTo12Hr, getStatusInfo, parseDatabaseDate, formatDateLocal } from '../helpers';
 
 export const ScheduleCard: React.FC<{ 
   schedule: Schedule; 
@@ -11,17 +11,45 @@ export const ScheduleCard: React.FC<{
   onEdit: (s: Schedule) => void;
   onDelete: (id: string) => void;
   onViewDoc: (s: Schedule) => void;
-}> = ({ schedule, isAdmin, customIcons, onEdit, onDelete, onViewDoc }) => {
+  viewDate?: string; // The date currently being viewed in the dashboard/history
+}> = ({ schedule, isAdmin, customIcons, onEdit, onDelete, onViewDoc, viewDate }) => {
+  const [isCommentsExpanded, setIsCommentsExpanded] = useState(false);
   const isOnline = schedule.type === 'Online';
-  const status = getStatusInfo(schedule.date, schedule.time, schedule.type);
   const isAssignment = schedule.category === 'assignment';
   const isActivity = schedule.category === 'activity';
+
+  // Contextual Logic for Assignments
+  const isViewingGivenDate = isAssignment && viewDate === schedule.givenDate;
+  const isViewingDueDate = isAssignment && viewDate === schedule.date;
   
-  const accentColor = isAssignment ? 'text-rose-400' : isActivity ? 'text-indigo-400' : 'text-blue-400';
-  const accentBg = isAssignment ? 'bg-rose-500/10' : isActivity ? 'bg-indigo-500/10' : 'bg-blue-500/10';
-  const barColor = isAssignment ? 'bg-rose-500' : isActivity ? 'bg-indigo-500' : 'bg-blue-500';
+  // Default status for classes/activities
+  const status = getStatusInfo(schedule.date, schedule.time, schedule.type);
+
+  // Styling based on category and context
+  let accentColor = isAssignment ? 'text-rose-400' : isActivity ? 'text-indigo-400' : 'text-blue-400';
+  let accentBg = isAssignment ? 'bg-rose-500/10' : isActivity ? 'bg-indigo-500/10' : 'bg-blue-500/10';
+  let barColor = isAssignment ? 'bg-rose-500' : isActivity ? 'bg-indigo-500' : 'bg-blue-500';
+
+  // Override styling if viewing the "Assigned" state of an assignment
+  if (isViewingGivenDate) {
+    accentColor = 'text-emerald-400';
+    accentBg = 'bg-emerald-500/10';
+    barColor = 'bg-emerald-500';
+  }
 
   const isLive = status?.label === 'Live Now';
+  const hasMultipleAttachments = (schedule.attachments?.length || 0) > 1;
+  const hasLongComments = schedule.instructions && schedule.instructions.length > 120;
+
+  // Calculate days difference for assignments
+  const getDaysDiff = () => {
+    if (!schedule.givenDate || !schedule.date) return null;
+    const start = parseDatabaseDate(schedule.givenDate).getTime();
+    const end = parseDatabaseDate(schedule.date).getTime();
+    return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+  };
+
+  const daysDiff = getDaysDiff();
 
   return (
     <div className="google-card p-6 flex flex-col h-full animate-fade-in relative group overflow-hidden">
@@ -30,9 +58,16 @@ export const ScheduleCard: React.FC<{
       <div className="flex justify-between items-start mb-6">
         <div className="flex flex-wrap gap-2">
           <div className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${accentBg} ${accentColor} border border-white/5`}>
-            {schedule.category}
+            {isViewingGivenDate ? 'ASSIGNED' : isViewingDueDate ? 'DEADLINE' : schedule.category}
           </div>
-          {status && (
+          
+          {isAssignment && daysDiff !== null && (
+            <div className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-white/5 text-slate-400 border border-white/5">
+              {daysDiff} Day Window
+            </div>
+          )}
+
+          {!isAssignment && status && (
             <div className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 ${status.color} border border-white/5`}>
               {status.label}
             </div>
@@ -46,7 +81,7 @@ export const ScheduleCard: React.FC<{
               className="p-2 text-slate-500 hover:text-blue-400 bg-white/5 rounded-xl transition-all btn-feedback"
               title="Edit Schedule"
             >
-              <Icons.Save />
+              <Icons.Edit />
             </button>
             <button 
               onClick={() => onDelete(schedule.id)} 
@@ -65,7 +100,7 @@ export const ScheduleCard: React.FC<{
              <img src={customIcons[schedule.course]} className="w-full h-full object-contain" alt="course" />
            ) : (
              <div className={`w-full h-full flex items-center justify-center ${accentColor}`}>
-               <Icons.Calendar />
+               {isAssignment ? <Icons.File /> : <Icons.Calendar />}
              </div>
            )}
         </div>
@@ -80,15 +115,30 @@ export const ScheduleCard: React.FC<{
       </div>
 
       <div className="space-y-4 flex-grow">
-        <div className="flex items-center gap-4">
-           <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-slate-500 border border-white/5 group-hover:text-blue-400 transition-colors">
+        {/* Date Logic */}
+        <div className="flex items-start gap-4">
+           <div className={`w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/5 group-hover:${accentColor} transition-colors`}>
              <Icons.Calendar />
            </div>
-           <div className="min-w-0">
-             <p className="text-xs font-bold text-white tracking-tight">
-               {parseDatabaseDate(schedule.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-             </p>
-             <p className="text-[11px] font-medium text-slate-500">Starts at {formatTo12Hr(schedule.time)}</p>
+           <div className="min-w-0 space-y-2">
+             {schedule.givenDate && (
+                <div className={isViewingGivenDate ? 'ring-2 ring-emerald-500/20 p-2 rounded-lg -ml-2' : ''}>
+                   <p className={`text-[9px] font-black uppercase tracking-widest mb-0.5 ${isViewingGivenDate ? 'text-emerald-500' : 'text-slate-500'}`}>Assigned On</p>
+                   <p className="text-xs font-bold text-slate-300">
+                     {parseDatabaseDate(schedule.givenDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                   </p>
+                </div>
+             )}
+             <div className={isViewingDueDate ? 'ring-2 ring-rose-500/20 p-2 rounded-lg -ml-2' : ''}>
+                <p className={`text-[9px] font-black uppercase tracking-widest mb-0.5 ${isViewingDueDate ? 'text-rose-500' : 'text-blue-500'}`}>{isAssignment ? 'Submission Date' : 'Event Date'}</p>
+                <p className="text-xs font-bold text-white tracking-tight">
+                  {parseDatabaseDate(schedule.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                </p>
+                {!isAssignment && <p className="text-[11px] font-medium text-slate-500">Starts at {formatTo12Hr(schedule.time)}</p>}
+                {isAssignment && isViewingGivenDate && (
+                  <p className="text-[11px] font-medium text-emerald-500/80">Available for submission</p>
+                )}
+             </div>
            </div>
         </div>
 
@@ -101,6 +151,32 @@ export const ScheduleCard: React.FC<{
              <p className="text-[11px] font-medium text-slate-500 truncate">{isOnline ? 'Network Hub' : 'Physical Location'}</p>
            </div>
         </div>
+
+        {/* Instructions / Comments Section */}
+        {schedule.instructions && (
+          <div className="mt-4 p-4 rounded-xl bg-white/[0.03] border border-white/[0.05] transition-all duration-300">
+             <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Lecturer's Comments</span>
+                </div>
+                {hasLongComments && (
+                  <button 
+                    onClick={() => setIsCommentsExpanded(!isCommentsExpanded)}
+                    className="text-[8px] font-black text-blue-500 uppercase tracking-widest hover:text-blue-400 transition-colors flex items-center gap-1"
+                  >
+                    {isCommentsExpanded ? 'Show Less' : 'Show More'}
+                    <div className={`transition-transform duration-300 ${isCommentsExpanded ? 'rotate-180' : ''}`}>
+                      <Icons.ChevronLeft />
+                    </div>
+                  </button>
+                )}
+             </div>
+             <p className={`text-xs text-slate-400 font-medium leading-relaxed italic ${!isCommentsExpanded ? 'line-clamp-3' : ''}`}>
+               "{schedule.instructions}"
+             </p>
+          </div>
+        )}
       </div>
 
       <div className="mt-8 flex flex-col gap-3">
@@ -124,16 +200,22 @@ export const ScheduleCard: React.FC<{
           </a>
         ) : (
           <div className="w-full h-14 bg-white/5 border border-white/5 text-slate-600 rounded-2xl flex items-center justify-center gap-3 text-[11px] font-black uppercase tracking-widest cursor-default">
-            In-Person Session
+            {isAssignment ? 'Institutional Task' : 'In-Person Session'}
           </div>
         )}
         
-        {schedule.attachment && (
+        {(schedule.attachments?.length || 0) > 0 && (
           <button 
             onClick={() => onViewDoc(schedule)} 
-            className="w-full h-14 bg-white text-black rounded-2xl flex items-center justify-center gap-3 text-[11px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all btn-feedback shadow-sm"
+            className="w-full h-14 bg-white text-black rounded-2xl flex items-center justify-center gap-3 text-[11px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all btn-feedback shadow-sm relative"
           >
-             <Icons.File /> Study Materials
+             <Icons.File /> 
+             {hasMultipleAttachments ? `Study Materials (${schedule.attachments?.length})` : 'Study Materials'}
+             {hasMultipleAttachments && (
+                <div className="absolute top-1 right-1 px-2 py-0.5 bg-blue-600 rounded-full text-[8px] text-white font-black uppercase tracking-widest shadow-sm">
+                  Gallery
+                </div>
+             )}
           </button>
         )}
       </div>

@@ -19,7 +19,6 @@ export const Dashboard: React.FC<{
   onEditRequest: (s: Schedule) => void;
   showToast: (msg: string, type?: ToastType) => void;
 }> = ({ schedules, isAdmin, customIcons, fetchAllData, setViewingDoc, onEditRequest, showToast }) => {
-  const [filter, setFilter] = useState<'All' | 'Physical' | 'Online'>('All');
   const [selectedDate, setSelectedDate] = useState<string | 'All'>('All');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [calendarMonth, setCalendarMonth] = useState(new Date());
@@ -31,17 +30,23 @@ export const Dashboard: React.FC<{
 
   const filteredSchedules = useMemo(() => {
     return schedules
-      .filter(s => 
-        (s.date >= todayStr) && // Automatic Termination of Past Sessions from main view
-        (filter === 'All' || s.type === filter) && 
-        (selectedDate === 'All' || s.date === selectedDate)
-      )
+      .filter(s => {
+        // Automatic Termination of Past Sessions from main view
+        // Except for assignments which might have a due date in future but given date in past
+        const isFutureOrToday = s.date >= todayStr || (s.givenDate && s.givenDate >= todayStr);
+        if (!isFutureOrToday && selectedDate === 'All') return false;
+
+        if (selectedDate === 'All') return true;
+
+        // Check if viewed date matches assigned OR due date
+        return s.date === selectedDate || (s.givenDate === selectedDate);
+      })
       .sort((a, b) => {
         const dateCompare = a.date.localeCompare(b.date);
         if (dateCompare !== 0) return dateCompare;
         return a.time.localeCompare(b.time);
       });
-  }, [schedules, filter, selectedDate, todayStr]);
+  }, [schedules, selectedDate, todayStr]);
 
   const timelineDates = useMemo(() => {
     const dates = [];
@@ -84,29 +89,24 @@ export const Dashboard: React.FC<{
 
   const getEventsForDate = (date: Date) => {
     const dStr = formatDateLocal(date);
-    return schedules.filter(s => s.date === dStr);
+    return schedules.filter(s => s.date === dStr || s.givenDate === dStr);
   };
 
   return (
-    <div className="animate-fade-in space-y-12 pb-12">
+    <div className="animate-fade-in space-y-8 pb-12">
       <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
         <div className="space-y-2">
            <h2 className="text-4xl md:text-5xl font-black tracking-tight text-white leading-none">The Timeline</h2>
            <p className="text-slate-500 font-medium text-base max-w-xl">Unified academic hub for the 100L collective.</p>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-4">
-           <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
-              <button onClick={() => setViewMode('list')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all btn-feedback ${viewMode === 'list' ? 'bg-white text-black' : 'text-slate-500'}`}>List</button>
-              <button onClick={() => setViewMode('calendar')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all btn-feedback ${viewMode === 'calendar' ? 'bg-white text-black' : 'text-slate-500'}`}>Grid</button>
-           </div>
-           <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
-              {(['All', 'Physical', 'Online'] as const).map(f => (
-                <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all btn-feedback ${filter === f ? 'bg-white text-black' : 'text-slate-500'}`}>{f}</button>
-              ))}
-           </div>
-        </div>
       </header>
+
+      <div className="flex flex-wrap items-center gap-4">
+          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 shrink-0">
+            <button onClick={() => setViewMode('list')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all btn-feedback ${viewMode === 'list' ? 'bg-white text-black' : 'text-slate-500'}`}>List</button>
+            <button onClick={() => setViewMode('calendar')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all btn-feedback ${viewMode === 'calendar' ? 'bg-white text-black' : 'text-slate-500'}`}>Grid</button>
+          </div>
+      </div>
 
       {viewMode === 'list' ? (
         <div className="space-y-10">
@@ -142,13 +142,14 @@ export const Dashboard: React.FC<{
              ) : (
                 filteredSchedules.map(s => (
                   <ScheduleCard 
-                    key={s.id} 
+                    key={`${s.id}-${selectedDate}`} 
                     schedule={s} 
                     isAdmin={isAdmin} 
                     customIcons={customIcons} 
                     onEdit={onEditRequest} 
                     onDelete={setDeleteId} 
                     onViewDoc={setViewingDoc} 
+                    viewDate={selectedDate === 'All' ? undefined : selectedDate}
                   />
                 ))
              )}
@@ -197,14 +198,14 @@ export const Dashboard: React.FC<{
                     </span>
                   </div>
                   <div className="space-y-1.5">
-                    {events.slice(0, 2).map(e => (
+                    {events.slice(0, 3).map(e => (
                       <div 
-                        key={e.id} 
-                        className={`h-2 rounded-full ${e.category === 'assignment' ? 'bg-rose-500' : e.category === 'activity' ? 'bg-indigo-500' : 'bg-blue-500'}`} 
+                        key={`${e.id}-${dStr}`} 
+                        className={`h-2 rounded-full ${e.category === 'assignment' ? (e.givenDate === dStr ? 'bg-emerald-500' : 'bg-rose-500') : e.category === 'activity' ? 'bg-indigo-500' : 'bg-blue-500'}`} 
                         title={e.title || (e.course && e.course.toUpperCase())} 
                       />
                     ))}
-                    {events.length > 2 && <div className="text-[8px] font-black text-slate-600 text-center mt-1">+{events.length - 2}</div>}
+                    {events.length > 3 && <div className="text-[8px] font-black text-slate-600 text-center mt-1">+{events.length - 3}</div>}
                   </div>
                 </div>
               );

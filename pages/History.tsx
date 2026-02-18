@@ -25,10 +25,10 @@ export const History: React.FC<{
 
   const todayStr = useMemo(() => formatDateLocal(new Date()), []);
 
-  // Filter schedules for the SPECIFIC selected date (Old or New as requested)
+  // Filter schedules for the SPECIFIC selected date (matching either Assigned or Due)
   const daySchedules = useMemo(() => {
     return schedules
-      .filter(s => s.date === selectedDate)
+      .filter(s => s.date === selectedDate || s.givenDate === selectedDate)
       .sort((a, b) => a.time.localeCompare(b.time));
   }, [schedules, selectedDate]);
 
@@ -62,7 +62,7 @@ export const History: React.FC<{
 
   const getEventsForDate = (date: Date) => {
     const dStr = formatDateLocal(date);
-    return schedules.filter(s => s.date === dStr);
+    return schedules.filter(s => s.date === dStr || s.givenDate === dStr);
   };
 
   return (
@@ -75,17 +75,20 @@ export const History: React.FC<{
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
              <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
-             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Classes</span>
+             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Events</span>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
+             <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Released</span>
           </div>
           <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
              <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"></div>
-             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tasks</span>
+             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Deadlines</span>
           </div>
         </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-        {/* Universal Calendar Grid */}
         <div className="lg:col-span-8">
           <div className="bg-[#161a22] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl relative">
             <div className="p-8 border-b border-white/5 flex items-center justify-between bg-black/20">
@@ -130,8 +133,8 @@ export const History: React.FC<{
                     <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1">
                       {events.slice(0, 5).map(e => (
                         <div 
-                          key={e.id} 
-                          className={`w-1.5 h-1.5 rounded-full ${e.category === 'assignment' ? 'bg-rose-500' : e.category === 'activity' ? 'bg-indigo-500' : 'bg-blue-500'} ${isPast ? 'opacity-30' : 'opacity-100 shadow-[0_0_5px_currentColor]'}`} 
+                          key={`${e.id}-${dStr}`} 
+                          className={`w-1.5 h-1.5 rounded-full ${e.category === 'assignment' ? (e.givenDate === dStr ? 'bg-emerald-500' : 'bg-rose-500') : e.category === 'activity' ? 'bg-indigo-500' : 'bg-blue-500'} ${isPast ? 'opacity-30' : 'opacity-100 shadow-[0_0_5px_currentColor]'}`} 
                         />
                       ))}
                       {events.length > 5 && <div className="text-[7px] font-black text-slate-700">+{events.length - 5}</div>}
@@ -143,7 +146,6 @@ export const History: React.FC<{
           </div>
         </div>
 
-        {/* Selected Date Detail View (Past & Future Sessions) */}
         <div className="lg:col-span-4 space-y-6">
            <div className="sticky top-8 space-y-6">
               <div className="google-card p-6 bg-white/[0.02] border-white/10">
@@ -166,13 +168,14 @@ export const History: React.FC<{
                 {daySchedules.length > 0 ? (
                   daySchedules.map(s => (
                     <ScheduleCard 
-                      key={s.id} 
+                      key={`${s.id}-${selectedDate}`} 
                       schedule={s} 
                       isAdmin={isAdmin} 
                       customIcons={customIcons} 
                       onEdit={onEditRequest} 
                       onDelete={setDeleteId} 
                       onViewDoc={setViewingDoc} 
+                      viewDate={selectedDate}
                     />
                   ))
                 ) : (

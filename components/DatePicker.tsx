@@ -33,8 +33,16 @@ export const DatePicker: React.FC<{
   const padding = Array.from({ length: startDay }, (_, i) => null);
 
   const handleDateSelect = (day: number) => {
-    const selected = new Date(year, month, day);
-    onChange(formatDateLocal(selected));
+    const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    
+    if (value === dayStr) {
+      // Unselect if clicking the same date
+      onChange('');
+    } else {
+      const selected = new Date(year, month, day);
+      onChange(formatDateLocal(selected));
+    }
+    
     if (!inline) setIsOpen(false);
   };
 
@@ -68,7 +76,7 @@ export const DatePicker: React.FC<{
               onClick={() => handleDateSelect(day)} 
               className={`aspect-square flex items-center justify-center rounded-[6px] text-xs font-bold transition-all ${
                 isSelected 
-                  ? 'bg-blue-600 text-white shadow-lg' 
+                  ? 'bg-blue-600 text-white shadow-lg ring-2 ring-white/20' 
                   : isToday 
                     ? 'border border-blue-600/50 text-blue-400 font-black'
                     : 'hover:bg-white/5 text-slate-400'
@@ -79,6 +87,15 @@ export const DatePicker: React.FC<{
           );
         })}
       </div>
+      {value && (
+        <button 
+          type="button" 
+          onClick={() => onChange('')}
+          className="w-full mt-4 py-2 bg-white/5 rounded-lg text-[8px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors"
+        >
+          Clear Selection
+        </button>
+      )}
     </div>
   );
 
