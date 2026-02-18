@@ -1,76 +1,89 @@
 
-export const formatTo12Hr = (time24: string): string => {
-  if (!time24) return "";
-  const [hours, minutes] = time24.split(':');
-  let h = parseInt(hours);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12;
-  h = h ? h : 12; 
-  return `${h}:${minutes} ${ampm}`;
+type CacheEntry<T> = {
+  data: T;
+  expiry: number;
 };
 
-/**
- * Returns YYYY-MM-DD from a Date object using local time components.
- */
-export const formatDateLocal = (date: Date): string => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-};
+class AppCache {
+  private cache: Map<string, CacheEntry<any>> = new Map();
+  private defaultTTL = 60000; // 1 minute default
 
-/**
- * Parses a YYYY-MM-DD string into a local Date object at midnight.
- * This is the requested method to ensure the date never shifts based on timezone.
- */
-export const parseDatabaseDate = (dateStr: string): Date => {
-  if (!dateStr) return new Date();
-  const [year, month, day] = dateStr.split('-').map(Number);
-  // Month is 0-based in JS Date constructor
-  return new Date(year, month - 1, day);
-};
-
-/**
- * Prepares date and time for database storage as literal strings.
- */
-export const prepareAgnosticDate = (dateStr: string, timeStr: string) => {
-  return {
-    agnosticDate: dateStr,
-    agnosticTime: timeStr || "09:00"
-  };
-};
-
-export const getStatusInfo = (dateStr: string, timeStr: string, type?: string) => {
-  const now = new Date();
-  const todayStr = formatDateLocal(now);
-  
-  if (dateStr !== todayStr) {
-    if (dateStr < todayStr) return { label: 'Completed', color: 'bg-white/5 text-slate-500' };
-    return null; 
+  constructor() {
+    this.loadFromStorage();
   }
 
-  // Same day logic: calculate time difference in minutes
-  const [h, m] = timeStr.split(':').map(Number);
-  const classTime = new Date();
-  classTime.setHours(h, m, 0, 0);
-  
-  const diffMinutes = (classTime.getTime() - now.getTime()) / (1000 * 60);
-
-  // Academic Protocol: Online classes stay Live for 5 hours (300 mins), Physical for 2 hours (120 mins)
-  const liveThreshold = type === 'Online' ? 300 : 120;
-
-  // Live if started in the allowed window
-  if (diffMinutes <= 0 && diffMinutes > -liveThreshold) {
-    return { label: 'Live Now', color: 'live-pulse-red text-white' };
-  }
-  
-  if (diffMinutes > 0 && diffMinutes < 60) {
-    return { label: 'Starting Soon', color: 'bg-amber-500 text-white shadow-md' };
+  private loadFromStorage() {
+    try {
+      const stored = localStorage.getItem('app_persistent_cache');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        Object.entries(parsed).forEach(([key, value]) => {
+          this.cache.set(key, value as CacheEntry<any>);
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to load cache from storage", e);
+    }
   }
 
-  if (diffMinutes <= -liveThreshold) {
-    return { label: 'Completed', color: 'bg-white/5 text-slate-500' };
+  private syncToStorage() {
+    try {
+      const obj: Record<string, CacheEntry<any>> = {};
+      this.cache.forEach((value, key) => {
+        // Only persist if not expired
+        if (Date.now() < value.expiry) {
+          obj[key] = value;
+        }
+      });
+      localStorage.setItem('app_persistent_cache', JSON.stringify(obj));
+    } catch (e) {
+      console.warn("Failed to sync cache to storage", e);
+    }
   }
 
-  return null;
-};
+  set<T>(key: string, data: T, ttlMs?: number): void {
+    const expiry = Date.now() + (ttlMs ?? this.defaultTTL);
+    this.cache.set(key, { data, expiry });
+    this.syncToStorage();
+    console.debug(`[Cache] SET: ${key} (TTL: ${(ttlMs ?? this.defaultTTL) / 1000}s)`);
+  }
+
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      console.debug(`[Cache] MISS: ${key}`);
+      return null;
+    }
+
+    if (Date.now() > entry.expiry) {
+      console.debug(`[Cache] EXPIRED: ${key}`);
+      this.cache.delete(key);
+      this.syncToStorage();
+      return null;
+    }
+
+    console.debug(`[Cache] HIT: ${key}`);
+    return entry.data as T;
+  }
+
+  delete(key: string): void {
+    console.debug(`[Cache] INVALIDATE: ${key}`);
+    this.cache.delete(key);
+    this.syncToStorage();
+  }
+
+  clear(): void {
+    console.debug(`[Cache] CLEAR ALL`);
+    this.cache.clear();
+    localStorage.removeItem('app_persistent_cache');
+  }
+
+  getStats() {
+    return {
+      size: this.cache.size,
+      keys: Array.from(this.cache.keys()),
+    };
+  }
+}
+
+export const appCache = new AppCache();

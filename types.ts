@@ -1,7 +1,7 @@
 
 export type CourseCode = 'math101' | 'chm101' | 'chm107' | 'phy101' | 'phy107' | 'bio101' | 'bio107' | 'gst111' | 'cos101';
 export type ClassType = 'Physical' | 'Online';
-export type AppView = 'dashboard' | 'profile' | 'login' | 'signup' | 'admin_portal' | 'history';
+export type AppView = 'dashboard' | 'profile' | 'login' | 'signup' | 'admin_portal' | 'history' | 'guide';
 export type ScheduleCategory = 'class' | 'assignment' | 'activity';
 export type ViewMode = 'list' | 'calendar';
 
@@ -34,8 +34,8 @@ export interface Schedule {
   category: ScheduleCategory;
   course?: CourseCode; 
   title?: string; 
-  date: string; // Due Date / Class Date
-  givenDate?: string; // Date Assigned
+  date?: string; // Due Date / Class Date (Optional)
+  givenDate?: string; // Date Assigned (Optional)
   time: string; 
   type: ClassType;
   location: string; 
@@ -48,15 +48,16 @@ export interface Schedule {
   attachmentName?: string;
 }
 
+// Added GuidePost interface definition for the resources section
 export interface GuidePost {
   id: string;
   title: string;
   content: string;
-  link?: string;
+  createdAt: number | string;
   attachment?: string;
   attachmentType?: string;
   attachmentName?: string;
-  createdAt: number;
+  link?: string;
 }
 
 export const COURSES: Record<CourseCode, string> = {

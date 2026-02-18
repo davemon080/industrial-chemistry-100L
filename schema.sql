@@ -2,6 +2,12 @@
 -- ClassSync COMPREHENSIVE Database Schema
 -- Run this code in your Neon SQL Editor to fully initialize your database structure.
 
+-- !!! IMPORTANT: MIGRATION FOR EXISTING DATABASES !!!
+-- If you are seeing "null value in column 'date' violates not-null constraint", 
+-- RUN THESE TWO LINES BELOW IN YOUR SQL EDITOR:
+ALTER TABLE schedules ALTER COLUMN date DROP NOT NULL;
+ALTER TABLE schedules ALTER COLUMN given_date DROP NOT NULL;
+
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -25,8 +31,8 @@ CREATE TABLE IF NOT EXISTS schedules (
     category VARCHAR(50) NOT NULL CHECK (category IN ('class', 'assignment', 'activity')),
     course VARCHAR(50), 
     title VARCHAR(255), 
-    date DATE, -- Made nullable as requested
-    given_date DATE, 
+    date DATE NULL, -- Explicitly allowed NULL for unscheduled entries
+    given_date DATE NULL, 
     time TIME NOT NULL,
     type VARCHAR(50) NOT NULL CHECK (type IN ('Physical', 'Online')),
     location TEXT NOT NULL,
